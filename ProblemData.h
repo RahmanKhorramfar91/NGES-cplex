@@ -63,7 +63,7 @@ struct plant
 	int num;  //0:'ng',1:'dfo',2:'solar',3:'wind',4:'wind_offshore', 5:'hydro',6:'coal',7:'nuclear'
 	int Umax = 10; // maximum number of plants in a Enode
 	int capex; // dollar per MW
-	int fix_cost;//dollar per MW per year
+	int fix_cost;//dollar per count of type i per year
 	int var_cost;//dollar per MWh
 	float heat_rate;//MMBTU/MWh
 	float emis_rate;//ton/MMBTU
@@ -173,6 +173,8 @@ struct Params
 	static int trans_unit_cost;
 	static int trans_line_lifespan;
 	static float NG_price;
+	static float Emis_lim;
+	static float RPS;
 
 	static float dfo_pric;
 	static float coal_price;
@@ -180,17 +182,19 @@ struct Params
 	static float G_curt_cost;
 	static float pipe_per_mile;
 	static int pipe_lifespan;
+	static vector<int> RepDaysCount;
 
 
 	// natural gas data
-	static int Tg;
+	static vector<int> Tg;
 	static vector<gnode> Gnodes;
 	static vector<pipe> PipeLines;
 
 
 	// electricity data
 	static map<int, vector<int>> Lnm;
-	static int Te;
+	static vector<int> Te;
+	static vector<int> time_weight;
 	static vector<enode> Enodes;
 	static vector<Fips> all_FIPS;
 	static vector<plant> Plants;

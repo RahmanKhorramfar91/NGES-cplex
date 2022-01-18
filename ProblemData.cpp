@@ -5,8 +5,10 @@ vector<enode> Params::Enodes;
 vector<Fips> Params::all_FIPS;
 vector<plant> Params::Plants;
 vector<branch> Params::Branches;
-int Params::Tg;
-int Params::Te;
+vector<int> Params::Tg;
+vector<int> Params::Te;
+vector<int> Params::RepDaysCount;
+vector<int> Params::time_weight;
 float Params::WACC;
 int Params::trans_unit_cost;
 int Params::trans_line_lifespan;
@@ -16,6 +18,8 @@ float Params::coal_price;
 float Params::E_curt_cost;
 float Params::G_curt_cost;
 float Params::pipe_per_mile;
+float Params::Emis_lim;
+float Params::RPS;
 int Params::pipe_lifespan;
 map<int, vector<int>> Params::Lnm;	
 
@@ -161,7 +165,7 @@ vector<plant> plant::read_new_plant_data(string name)
 		string type;
 		float h, emis_rate;
 		iss >> type >> n >> capex >>pmax>>pmin>>ru>>rd>> fix_cost >> var_cost >> h >> emis_rate >> decom_cost >> emis_cost >> lifespan;
-		plant np(type, (int)n, (int)capex,pmax,pmin,ru,rd, (int)fix_cost / (365 * 24), (int)var_cost, h, emis_rate, (int)decom_cost, (int)emis_cost, (int)lifespan);
+		plant np(type, (int)n, (int)capex,pmax,pmin,ru,rd, (int)fix_cost, (int)var_cost, h, emis_rate, (int)decom_cost, (int)emis_cost, (int)lifespan);
 		NewPlants.push_back(np);
 	}
 	fid.close();

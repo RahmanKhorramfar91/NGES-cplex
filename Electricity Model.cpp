@@ -24,8 +24,9 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	int nEnode = Enodes.size();
 	int nPlt = Plants.size();
 	int nBr = Branches.size();
-	int Tg = Params::Tg;
-	int Te = Params::Te;
+	vector<int> Tg = Params::Tg;
+	vector<int> Te = Params::Te;
+	vector<int> time_weight = Params::time_weight;
 	float pi = 3.1415926535897;
 	int nGnode = Gnodes.size();
 	float WACC = Params::WACC;
@@ -39,6 +40,9 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	float pipe_per_mile = Params::pipe_per_mile;
 	int pipe_lifespan = Params::pipe_lifespan;
 	map<int, vector<int>> Lnm = Params::Lnm;
+	vector<int> RepDaysCount = Params::RepDaysCount;
+	float Emis_lim = Params::Emis_lim;
+	float RPS = Params::RPS;
 #pragma endregion
 
 	IloEnv env;
@@ -58,7 +62,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	NumVar2D flowE(env, nBr); // unlike the paper, flowE subscripts are "ntm" here
 	for (int b = 0; b < nBr; b++)
 	{
-		flowE[b] = IloNumVarArray(env, Te, -IloInfinity, IloInfinity, ILOFLOAT);
+		flowE[b] = IloNumVarArray(env, Te.size(), -IloInfinity, IloInfinity, ILOFLOAT);
 	}
 	for (int n = 0; n < nEnode; n++)
 	{
@@ -79,15 +83,15 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 
 
 		Ze[n] = IloNumVarArray(env, Enodes[n].adj_buses.size(), 0, IloInfinity, ILOBOOL);
-		theta[n] = IloNumVarArray(env, Te, -pi, pi, ILOFLOAT);
-		curtE[n] = IloNumVarArray(env, Te, 0, IloInfinity, ILOFLOAT);
+		theta[n] = IloNumVarArray(env, Te.size(), -pi, pi, ILOFLOAT);
+		curtE[n] = IloNumVarArray(env, Te.size(), 0, IloInfinity, ILOFLOAT);
 
-		prod[n] = NumVar2D(env, Te);
+		prod[n] = NumVar2D(env, Te.size());
 
 		//flowE[n] = NumVar2D(env, Te); // ntm
 
-		DV_size += 4 * Te + Enodes[n].adj_buses.size();
-		for (int t = 0; t < Te; t++)
+		DV_size += 4 * Te.size() + Enodes[n].adj_buses.size();
+		for (int t = 0; t < Te.size(); t++)
 		{
 			prod[n][t] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOFLOAT);
 			//	flowE[n][t] = IloNumVarArray(env, Enodes[n].adj_buses.size(), -IloInfinity, IloInfinity, ILOFLOAT);
@@ -108,34 +112,40 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 			float capco = WACC / (1 - s1);
 			exp0 += capco * Plants[i].capex * Xest[n][i] + Plants[i].decom_cost * Xdec[n][i];
 		}
-		// fix+var+fuel costs of plants
-		for (int t = 0; t < Te; t++)
+
+		// fixed cost
+		for (int i = 0; i < nPlt; i++)
+		{
+			exp0 += Plants[i].fix_cost * X[n][i];
+		}
+		// var+fuel costs of plants
+		for (int t = 0; t < Te.size(); t++)
 		{
 			for (int i = 0; i < nPlt; i++)
 			{
-				// fixed cost is initially given annually, but cpp reads is hourly. 
-				exp0 += Te * Plants[i].fix_cost * X[n][i] + Plants[i].var_cost * prod[n][t][i];
+				// var cost
+				exp0 += time_weight[t] * Plants[i].var_cost * prod[n][t][i];
 
 				// fuel price to be updated later (dollar per thousand cubic feet=MMBTu)
 				if (Plants[i].fuel_type == "ng")
 				{
-					exp0 += NG_price * Plants[i].heat_rate * prod[n][t][i];
+					exp0 += time_weight[t] * NG_price * Plants[i].heat_rate * prod[n][t][i];
 				}
 				else if (Plants[i].fuel_type == "dfo")
 				{
-					exp0 += dfo_pric * Plants[i].heat_rate * prod[n][t][i];
+					exp0 += time_weight[t] * dfo_pric * Plants[i].heat_rate * prod[n][t][i];
 				}
 				else if (Plants[i].fuel_type == "coal")
 				{
-					exp0 += coal_price * Plants[i].heat_rate * prod[n][t][i];
+					exp0 += time_weight[t] * coal_price * Plants[i].heat_rate * prod[n][t][i];
 				}
 
 				// emission cost (to be added later)
-				exp0 += Plants[i].emis_cost * Plants[i].emis_rate * prod[n][t][i];
+				exp0 += time_weight[t] * Plants[i].emis_cost * Plants[i].emis_rate * prod[n][t][i];
 			}
 
 			// load curtailment cost
-			exp0 += E_curt_cost * curtE[n][t];
+			exp0 += time_weight[t] * E_curt_cost * curtE[n][t];
 		}
 	}
 
@@ -207,7 +217,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	//C3, C4: production limit, ramping
 	for (int n = 0; n < nEnode; n++)
 	{
-		for (int t = 0; t < Te; t++)
+		for (int t = 0; t < Te.size(); t++)
 		{
 			for (int i = 0; i < nPlt; i++)
 			{
@@ -236,7 +246,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 		Model.add(Ze[fb][tbi]); const_size++;
 		int fbi = std::find(Enodes[tb].adj_buses.begin(), Enodes[tb].adj_buses.end(), fb) - Enodes[tb].adj_buses.begin();
 		Model.add(Ze[tb][fbi]); const_size++;
-		for (int t = 0; t < Te; t++)
+		for (int t = 0; t < Te.size(); t++)
 		{
 			//Model.add(IloAbs(flowE[fb][t][tbi] + flowE[tb][t][fbi]) <= 10e-3);
 			if (Branches[br].is_exist == 1)
@@ -255,7 +265,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	//C7: flow balance
 	for (int n = 0; n < nEnode; n++)
 	{
-		for (int t = 0; t < Te; t++)
+		for (int t = 0; t < Te.size(); t++)
 		{
 			IloExpr exp1(env);
 			for (int i = 0; i < nPlt; i++)
@@ -267,7 +277,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 			{
 				int key1 = n * 200 + Enodes[n].adj_buses[m];
 				// check if this key exist, if not, the other order exisit
-				if (Lnm.count(key1)==0)
+				if (Lnm.count(key1) == 0)
 				{
 					key1 = Enodes[n].adj_buses[m] * 200 + n;
 				}
@@ -278,7 +288,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 			float dem = 0;
 			if (all_FIPS[Enodes[n].fips_order].bus_count > 0)
 			{
-				dem = all_FIPS[Enodes[n].fips_order].demE[t] / all_FIPS[Enodes[n].fips_order].bus_count;
+				dem = all_FIPS[Enodes[n].fips_order].demE[Te[t]] / all_FIPS[Enodes[n].fips_order].bus_count;
 			}
 			//Model.add(exp1 + curtE[n][t] == dem); // ignore transmission
 			Model.add(exp1 - exp2 + curtE[n][t] == dem); const_size++;
@@ -290,14 +300,22 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	{
 		int fb = Branches[br].from_bus;
 		int tb = Branches[br].to_bus;
-		/*int tbi = std::find(Enodes[fb].adj_buses.begin(), Enodes[fb].adj_buses.end(), tb) - Enodes[fb].adj_buses.begin();
-		int fbi = std::find(Enodes[tb].adj_buses.begin(), Enodes[tb].adj_buses.end(), fb) - Enodes[tb].adj_buses.begin();*/
+		int tbi = std::find(Enodes[fb].adj_buses.begin(), Enodes[fb].adj_buses.end(), tb) - Enodes[fb].adj_buses.begin();
+		int fbi = std::find(Enodes[tb].adj_buses.begin(), Enodes[tb].adj_buses.end(), fb) - Enodes[tb].adj_buses.begin();
 
-		for (int t = 0; t < Te; t++)
+		for (int t = 0; t < Te.size(); t++)
 		{
+			if (Branches[br].is_exist == 1)
+			{
+				Model.add(IloAbs(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t])) <= 1e-2);
+			}
+			else
+			{
+				Model.add(IloAbs(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t])) <= 1e-2 + Branches[br].suscep * 24 * (1 - Ze[fb][tbi]));
+			}
 			//Model.add(flowE[fb][t][tbi] == Branches[br].suscep * (theta[tb][t] - theta[fb][t]));
 			//Model.add(flowE[tb][t][fbi] == Branches[br].suscep * (theta[fb][t] - theta[tb][t]));
-			Model.add(IloAbs(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t])) <= 1e-2);
+			//Model.add(IloAbs(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t])) <= 1e-2);
 			//Model.add(IloAbs(flowE[tb][t][fbi] - Branches[br].suscep * (theta[fb][t] - theta[tb][t])) <= 1e-2);
 			const_size += 2;
 		}
@@ -307,7 +325,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	for (int n = 0; n < nEnode; n++)
 	{
 		Model.add(theta[n][0] == 0); const_size++;
-		for (int t = 1; t < Te; t++)
+		for (int t = 1; t < Te.size(); t++)
 		{
 			Model.add(IloAbs(theta[n][t]) <= pi); const_size++;
 		}
@@ -316,11 +334,11 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	// C10: VRE production profile
 	for (int n = 0; n < nEnode; n++)
 	{
-		for (int t = 0; t < Te; t++)
+		for (int t = 0; t < Te.size(); t++)
 		{
 			for (int r : Rn)
 			{
-				Model.add(prod[n][t][r] <= Plants[r].prod_profile[t] * X[n][r]);
+				Model.add(prod[n][t][r] <= Plants[r].prod_profile[Te[t]] * X[n][r]);
 				const_size++;
 			}
 		}
@@ -330,16 +348,39 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	// C11: demand curtainlment constraint
 	for (int n = 0; n < nEnode; n++)
 	{
-		for (int t = 0; t < Te; t++)
+		for (int t = 0; t < Te.size(); t++)
 		{
 			float dem = 0;
 			if (all_FIPS[Enodes[n].fips_order].bus_count > 0)
 			{
-				dem = all_FIPS[Enodes[n].fips_order].demE[t] / all_FIPS[Enodes[n].fips_order].bus_count;
+				dem = all_FIPS[Enodes[n].fips_order].demE[Te[t]] / all_FIPS[Enodes[n].fips_order].bus_count;
 			}
 			Model.add(curtE[n][t] <= dem); const_size++;
 		}
 	}
+
+	//C12, C13: Emission limit and RPS constraints
+	IloExpr exp2(env); IloExpr exp3(env);
+	float total_demand = 0;
+	for (int n = 0; n < nEnode; n++)
+	{
+		for (int t = 0; t < Te.size(); t++)
+		{
+			if (all_FIPS[Enodes[n].fips_order].bus_count > 0)
+			{
+				total_demand += all_FIPS[Enodes[n].fips_order].demE[Te[t]] / all_FIPS[Enodes[n].fips_order].bus_count;
+			}
+			for (int i = 0; i < nPlt; i++)
+			{
+				exp2 += time_weight[t]*Plants[i].emis_rate * prod[n][t][i];
+				exp3 += prod[n][t][i];
+			}
+		}
+	}
+	IloNumVar Emit_var(env, 0, IloInfinity, ILOFLOAT);
+	Model.add(exp2 == Emit_var);
+	Model.add(exp2 <= Emis_lim);
+	Model.add(exp3 >= RPS*total_demand);
 #pragma endregion
 
 #pragma region Solve the model
@@ -347,7 +388,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	std::cout << const_size << endl;
 	IloCplex cplex(Model);
 	cplex.setParam(IloCplex::TiLim, 7200);
-	cplex.setParam(IloCplex::EpGap, 0.001); // 0.1%
+	cplex.setParam(IloCplex::EpGap, 0.04); // 4%
 	//cplex.exportModel("MA_LP.lp");
 
 	//cplex.setOut(env.getNullStream());
@@ -371,7 +412,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
-
+	std::cout << "Emission tonngage for 2 hours:" <<cplex.getValue(Emit_var) << endl;
 #pragma endregion
 
 	if (PrintVars)
@@ -418,8 +459,8 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 		float** fs = new float* [nBr];
 		for (int b = 0; b < nBr; b++)
 		{
-			fs[b] = new float[Te]();
-			for (int t = 0; t < Te; t++)
+			fs[b] = new float[Te.size()]();
+			for (int t = 0; t < Te.size(); t++)
 			{
 				fs[b][t] = cplex.getValue(flowE[b][t]);
 				if (std::abs(fs[b][t]) > 10e-3)
@@ -450,8 +491,8 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 		float*** prodS = new float** [nEnode];
 		for (int n = 0; n < nEnode; n++)
 		{
-			prodS[n] = new float* [Te];
-			for (int t = 0; t < Te; t++)
+			prodS[n] = new float* [Te.size()];
+			for (int t = 0; t < Te.size(); t++)
 			{
 				if (t > 10) { break; }
 
@@ -471,8 +512,8 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 		float** curtS = new float* [nEnode];
 		for (int n = 0; n < nEnode; n++)
 		{
-			curtS[n] = new float[Te]();
-			for (int t = 0; t < Te; t++)
+			curtS[n] = new float[Te.size()]();
+			for (int t = 0; t < Te.size(); t++)
 			{
 				if (t > 10) { break; }
 				curtS[n][t] = cplex.getValue(curtE[n][t]);
