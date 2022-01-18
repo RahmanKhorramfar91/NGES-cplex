@@ -66,25 +66,27 @@ struct plant
 	int fix_cost;//dollar per MW per year
 	int var_cost;//dollar per MWh
 	float heat_rate;//MMBTU/MWh
-	float emis_rate;//kg/MMBTU
+	float emis_rate;//ton/MMBTU
 	int decom_cost;
-	int emis_cost; //$/kg
+	int emis_cost; //$/ton
 	int lifespan; // year
 	// revisit these paramters laters
 	float Pmin;
 	float Pmax;  // MW
-	float rampU = 200;
-	float rampD = 50;
+	float rampU;
+	float rampD;
 
 	vector<float> prod_profile;
 
-	plant(string t, int n, int cap, float pmax, float pmin, int f, int v, float h, float emi, int dec, int emic, int ls)
+	plant(string t, int n, int cap, float pmax, float pmin, float ru, float rd, int f, int v, float h, float emi, int dec, int emic, int ls)
 	{
 		this->fuel_type = t;
 		this->num = n;
 		this->capex = cap;
 		this->Pmax = pmax;
 		this->Pmin = pmin;
+		this->rampU = ru;
+		this->rampD = rd;
 		this->fix_cost = f;
 		this->var_cost = v;
 		this->heat_rate = h;
@@ -116,7 +118,9 @@ struct branch
 		this->maxFlow = m;
 		this->suscep = s;
 	}
-	static vector<branch> read_branch_data(int nBus, string FN, string FN0, string FN1, string FN2, string FN3, string FN4);
+	static vector<branch> read_branch_data(int nBus, string FN,
+		string FN0, string FN1, string FN2, string FN3, string FN4,
+		map<int, vector<int>>& Lnm);
 
 };
 
@@ -162,3 +166,33 @@ struct pipe
 };
 
 
+struct Params
+{
+	// General
+	static float WACC;
+	static int trans_unit_cost;
+	static int trans_line_lifespan;
+	static float NG_price;
+
+	static float dfo_pric;
+	static float coal_price;
+	static float E_curt_cost;
+	static float G_curt_cost;
+	static float pipe_per_mile;
+	static int pipe_lifespan;
+
+
+	// natural gas data
+	static int Tg;
+	static vector<gnode> Gnodes;
+	static vector<pipe> PipeLines;
+
+
+	// electricity data
+	static map<int, vector<int>> Lnm;
+	static int Te;
+	static vector<enode> Enodes;
+	static vector<Fips> all_FIPS;
+	static vector<plant> Plants;
+	static vector<branch> Branches;
+};

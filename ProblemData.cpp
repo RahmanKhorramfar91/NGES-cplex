@@ -1,4 +1,26 @@
 #include "ProblemData.h"
+vector<gnode> Params::Gnodes;
+vector<pipe> Params::PipeLines;
+vector<enode> Params::Enodes;
+vector<Fips> Params::all_FIPS;
+vector<plant> Params::Plants;
+vector<branch> Params::Branches;
+int Params::Tg;
+int Params::Te;
+float Params::WACC;
+int Params::trans_unit_cost;
+int Params::trans_line_lifespan;
+float Params::NG_price;
+float Params::dfo_pric;
+float Params::coal_price;
+float Params::E_curt_cost;
+float Params::G_curt_cost;
+float Params::pipe_per_mile;
+int Params::pipe_lifespan;
+map<int, vector<int>> Params::Lnm;	
+
+
+
 
 vector<enode> enode::read_bus_data(string name)
 {
@@ -135,11 +157,11 @@ vector<plant> plant::read_new_plant_data(string name)
 	while (getline(fid, line))
 	{
 		std::istringstream iss(line);
-		float n, capex,pmax, pmin, fix_cost, var_cost, decom_cost, emis_cost, lifespan;
+		float n, capex,pmax, pmin,ru,rd, fix_cost, var_cost, decom_cost, emis_cost, lifespan;
 		string type;
 		float h, emis_rate;
-		iss >> type >> n >> capex >>pmax>>pmin>> fix_cost >> var_cost >> h >> emis_rate >> decom_cost >> emis_cost >> lifespan;
-		plant np(type, (int)n, (int)capex,pmax,pmin, (int)fix_cost / (365 * 24), (int)var_cost, h, emis_rate, (int)decom_cost, (int)emis_cost, (int)lifespan);
+		iss >> type >> n >> capex >>pmax>>pmin>>ru>>rd>> fix_cost >> var_cost >> h >> emis_rate >> decom_cost >> emis_cost >> lifespan;
+		plant np(type, (int)n, (int)capex,pmax,pmin,ru,rd, (int)fix_cost / (365 * 24), (int)var_cost, h, emis_rate, (int)decom_cost, (int)emis_cost, (int)lifespan);
 		NewPlants.push_back(np);
 	}
 	fid.close();
@@ -180,7 +202,8 @@ void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant> &
 }
 
 
-vector<branch> branch::read_branch_data(int nBus, string FN, string FN0, string FN1, string FN2, string FN3, string FN4)
+vector<branch> branch::read_branch_data(int nBus, string FN,
+	string FN0, string FN1, string FN2, string FN3, string FN4, map<int, vector<int>>& Lnm)
 {
 
 	vector<branch> Branches;
@@ -192,7 +215,7 @@ vector<branch> branch::read_branch_data(int nBus, string FN, string FN0, string 
 	ifstream fid4(FN4); // Susceptance
 
 	string line, line0, line1, line2, line3, line4;
-
+	int lc = 0;
 	for (int i = 0; i < nBus; i++)
 	{
 		getline(fid, line);// branch per node
@@ -224,6 +247,9 @@ vector<branch> branch::read_branch_data(int nBus, string FN, string FN0, string 
 			iss4 >> s4;
 
 			branch nb(i, (int)s0, s1, s1, (int)s2, s3, s4);
+			//Lnm[i*200+ (int)s0] = vector<int>();
+			Lnm[i*200+ (int)s0].push_back(lc);
+			lc++;
 			Branches.push_back(nb);
 		}
 	}
