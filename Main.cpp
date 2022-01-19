@@ -42,7 +42,7 @@ int main()
 	auto start = chrono::high_resolution_clock::now();
 #pragma region Problem Setting
 	const int nRepDays = 2;
-	int PP = 2 * nRepDays;  // hours of planning for electricity network
+	int PP = 1 * nRepDays;  // hours of planning for electricity network
 	vector<int> Tg;  // days of planning
 	vector<int> RepDays{ 243, 321 };
 	vector<int> RepDaysCount{ 121, 244 };

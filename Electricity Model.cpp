@@ -251,12 +251,16 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 			//Model.add(IloAbs(flowE[fb][t][tbi] + flowE[tb][t][fbi]) <= 10e-3);
 			if (Branches[br].is_exist == 1)
 			{
-				Model.add(IloAbs(flowE[br][t]) <= Branches[br].maxFlow);
+				//Model.add(IloAbs(flowE[br][t]) <= Branches[br].maxFlow);
+				Model.add(flowE[br][t] <= Branches[br].maxFlow);
+				Model.add(-Branches[br].maxFlow <= flowE[br][t]);
 				const_size++;
 			}
 			else
 			{
-				Model.add(IloAbs(flowE[br][t]) <= Branches[br].maxFlow * Ze[fb][tbi]);
+				//Model.add(IloAbs(flowE[br][t]) <= Branches[br].maxFlow * Ze[fb][tbi]);
+				Model.add(flowE[br][t] <= Branches[br].maxFlow * Ze[fb][tbi]);
+				Model.add(-Branches[br].maxFlow * Ze[fb][tbi] <= flowE[br][t]);
 				const_size++;
 			}
 		}
@@ -307,11 +311,15 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 		{
 			if (Branches[br].is_exist == 1)
 			{
-				Model.add(IloAbs(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t])) <= 1e-2);
+				//Model.add(IloAbs(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t])) <= 1e-2);
+				Model.add(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t]) <= 1e-2);
+				Model.add(-1e-2 <= flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t]));
 			}
 			else
 			{
-				Model.add(IloAbs(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t])) <= 1e-2 + Branches[br].suscep * 24 * (1 - Ze[fb][tbi]));
+				//Model.add(IloAbs(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t])) <= 1e-2 + Branches[br].suscep * 24 * (1 - Ze[fb][tbi]));
+				Model.add(flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t]) <= 1e-2 + Branches[br].suscep * 24 * (1 - Ze[fb][tbi]));
+				Model.add(-1e-2 - Branches[br].suscep * 24 * (1 - Ze[fb][tbi]) <= flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t]));
 			}
 			//Model.add(flowE[fb][t][tbi] == Branches[br].suscep * (theta[tb][t] - theta[fb][t]));
 			//Model.add(flowE[tb][t][fbi] == Branches[br].suscep * (theta[fb][t] - theta[tb][t]));
@@ -327,7 +335,10 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 		Model.add(theta[n][0] == 0); const_size++;
 		for (int t = 1; t < Te.size(); t++)
 		{
-			Model.add(IloAbs(theta[n][t]) <= pi); const_size++;
+			//Model.add(IloAbs(theta[n][t]) <= pi);
+			Model.add(theta[n][t] <= pi);
+			Model.add(-pi <= theta[n][t]);
+			const_size++;
 		}
 	}
 
@@ -372,7 +383,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 			}
 			for (int i = 0; i < nPlt; i++)
 			{
-				exp2 += time_weight[t]*Plants[i].emis_rate * prod[n][t][i];
+				exp2 += time_weight[t] * Plants[i].emis_rate * prod[n][t][i];
 				exp3 += prod[n][t][i];
 			}
 		}
@@ -380,15 +391,15 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	IloNumVar Emit_var(env, 0, IloInfinity, ILOFLOAT);
 	Model.add(exp2 == Emit_var);
 	Model.add(exp2 <= Emis_lim);
-	Model.add(exp3 >= RPS*total_demand);
+	Model.add(exp3 >= RPS * total_demand);
 #pragma endregion
 
 #pragma region Solve the model
 	std::cout << DV_size << endl;
 	std::cout << const_size << endl;
 	IloCplex cplex(Model);
-	cplex.setParam(IloCplex::TiLim, 7200);
-	cplex.setParam(IloCplex::EpGap, 0.04); // 4%
+	//cplex.setParam(IloCplex::TiLim, 7200);
+	//cplex.setParam(IloCplex::EpGap, 0.04); // 4%
 	//cplex.exportModel("MA_LP.lp");
 
 	//cplex.setOut(env.getNullStream());
@@ -399,6 +410,26 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	//https://www.ibm.com/support/knowledgecenter/SSSA5P_12.9.0/ilog.odms.cplex.help/CPLEX/UsrMan/topics/discr_optim/mip/performance/20_node_seln.html
 	//cplex.setParam(IloCplex::Param::MIP::Strategy::VariableSelect, 4);//-1 to 4
 	//cplex.setParam(IloCplex::Param::RootAlgorithm, 4); /000 to 6
+
+	//cplex.setParam(IloCplex::Param::Benders::Strategy,3);// IloCplex::BendersFull
+	//cplex.setParam(IloCplex::Param::Benders::Strategy, IloCplex::BendersFull);// 
+
+	IloCplex::LongAnnotation
+		decomp = cplex.newLongAnnotation(IloCplex::BendersAnnotation,
+			CPX_BENDERS_MASTERVALUE + 1);
+	for (int n = 0; n < nEnode; n++)
+	{
+		for (int i = 0; i < nPlt; i++)
+		{
+			cplex.setAnnotation(decomp, X[n][i], CPX_BENDERS_MASTERVALUE);
+			cplex.setAnnotation(decomp, Xest[n][i], CPX_BENDERS_MASTERVALUE);
+			cplex.setAnnotation(decomp, Xdec[n][i], CPX_BENDERS_MASTERVALUE);
+		}
+		for (int i = 0; i < Enodes[n].adj_buses.size(); i++)
+		{
+			cplex.setAnnotation(decomp, Ze[n][i], CPX_BENDERS_MASTERVALUE);
+		}
+	}
 	if (!cplex.solve()) {
 		env.error() << "Failed to optimize!!!" << endl;
 		std::cout << cplex.getStatus();
@@ -412,7 +443,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
-	std::cout << "Emission tonngage for 2 hours:" <<cplex.getValue(Emit_var) << endl;
+	std::cout << "Emission tonngage for"<<Te.size()<< " hours:" << cplex.getValue(Emit_var) << endl;
 #pragma endregion
 
 	if (PrintVars)
