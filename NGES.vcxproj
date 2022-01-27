@@ -148,6 +148,7 @@
     <ClCompile Include="LBs.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Coupled Model.cpp" />
+    <ClCompile Include="NG Model.cpp" />
     <ClCompile Include="ProblemData.cpp" />
     <ClCompile Include="UBs.cpp" />
   </ItemGroup>

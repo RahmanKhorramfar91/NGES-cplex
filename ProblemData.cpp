@@ -2,7 +2,7 @@
 vector<gnode> Params::Gnodes;
 vector<pipe> Params::PipeLines;
 vector<enode> Params::Enodes;
-vector<Fips> Params::all_FIPS;
+vector<eStore> Params::Estorage;
 vector<plant> Params::Plants;
 vector<branch> Params::Branches;
 vector<int> Params::Tg;
@@ -21,7 +21,7 @@ float Params::pipe_per_mile;
 float Params::Emis_lim;
 float Params::RPS;
 int Params::pipe_lifespan;
-map<int, vector<int>> Params::Lnm;	
+map<int, vector<int>> Params::Lnm;
 
 
 
@@ -36,9 +36,9 @@ vector<enode> enode::read_bus_data(string name)
 	while (getline(fid, line))
 	{
 		std::istringstream iss(line);
-		float bus_num, fips_id, fips_order;
-		iss >> bus_num >> fips_id >> fips_order;
-		enode bs((int)bus_num, (int)fips_id, (int)fips_order);
+		float bus_num;
+		iss >> bus_num;
+		enode bs((int)bus_num);
 		Buses.push_back(bs);
 	}
 
@@ -95,37 +95,17 @@ void enode::read_exist_plt_data(string FileName, vector<enode>& Enodes)
 		string type;
 		float bus_num, Pmax, Pmin, g1, g2, g3, count;
 		iss >> bus_num >> type >> Pmax >> Pmin >> g1 >> g2 >> g3 >> count;
-
-		Enodes[(int)bus_num].Init_plt_types.push_back(type);
+		int bn = (int)bus_num;
+		Enodes[bn].Init_plt_types.push_back(type);
 		int ind1 = sym2ind[type];
-		Enodes[(int)bus_num].Init_plt_ind.push_back(ind1);
+		Enodes[bn].Init_plt_ind.push_back(ind1);
 		float* plim = new float[2]{ Pmin,Pmax };
-		Enodes[(int)bus_num].Init_plt_prod_lim.push_back(plim);
-		Enodes[(int)bus_num].Init_plt_count.push_back((int)count);
-
-
+		Enodes[bn].Init_plt_prod_lim.push_back(plim);
+		Enodes[bn].Init_plt_count.push_back((int)count);
 	}
 }
 
-
-vector<Fips> Fips::read_fips_data(string name)
-{
-	vector<Fips> all_FIPS;
-	ifstream fid(name);
-	string line;
-	while (getline(fid, line))
-	{
-		std::istringstream iss(line);
-		float f, s;
-		iss >> f >> s;
-		Fips fips((int)f, (int)s);
-		all_FIPS.push_back(fips);
-	}
-	fid.close();
-	return all_FIPS;
-}
-
-void Fips::read_demand_Data(string name, vector<Fips>& all_FIPS)
+void enode::read_demand_data(string name, vector<enode>& Enodes)
 {
 	ifstream fid(name);
 	string line;
@@ -138,7 +118,7 @@ void Fips::read_demand_Data(string name, vector<Fips>& all_FIPS)
 		{
 			if (line[i] == '\t' || i == line.length() - 1)
 			{
-				all_FIPS[j].demE.push_back(std::stof(temp));
+				Enodes[j].demand.push_back(std::stof(temp));
 				j++;
 				temp = "";
 			}
@@ -160,21 +140,45 @@ vector<plant> plant::read_new_plant_data(string name)
 	string line;
 	while (getline(fid, line))
 	{
+		//	string t, int n, int ise, int cap, int f, int v, float emi, float hr, int lt, int dec,
+			//	float pmax, float ru, float rd, int emic
 		std::istringstream iss(line);
-		float n, capex,pmax, pmin,ru,rd, fix_cost, var_cost, decom_cost, emis_cost, lifespan;
+		float n, ise, cap, f, v, emi, hr, lt, dec, pmax,pmin, ru, rd, emic;
+		//float  n, capex,pmax, pmin,ru,rd, fix_cost, var_cost, decom_cost, emis_cost, lifespan;
 		string type;
 		float h, emis_rate;
-		iss >> type >> n >> capex >>pmax>>pmin>>ru>>rd>> fix_cost >> var_cost >> h >> emis_rate >> decom_cost >> emis_cost >> lifespan;
-		plant np(type, (int)n, (int)capex,pmax,pmin,ru,rd, (int)fix_cost, (int)var_cost, h, emis_rate, (int)decom_cost, (int)emis_cost, (int)lifespan);
+		iss >> type >> n >> ise >> cap >> f >> v >> emi >> hr >> lt >> dec >> pmax >>pmin>> ru >> rd >> emic;
+		//iss >> type >> n >> capex >>pmax>>pmin>>ru>>rd>> fix_cost >> var_cost >> h >> emis_rate >> decom_cost >> emis_cost >> lifespan;
+		plant np(type, (int)n, (int)ise, (int)cap, (int)f, (int)v, emi, hr, (int)lt, (int)dec, pmax,pmin, ru, rd, (int)emic);
 		NewPlants.push_back(np);
 	}
 	fid.close();
 	return NewPlants;
 }
-void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant> &Plants)
+
+vector<eStore> eStore::read_elec_storage_data(string name)
+{
+	vector<eStore> Estorage;
+	ifstream fid(name);
+	string line;
+	while (getline(fid,line))
+	{
+		std::istringstream iss(line);
+		float en, pow, ch, dis;
+		iss >> en >> pow >> ch >> dis;
+		eStore str((int)en, (int)pow, ch, dis);
+		Estorage.push_back(str);
+	}
+	fid.close();
+	return Estorage;
+}
+
+void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant>& Plants)
 {
 	std::map<string, int> sym2pltType = { {"ng",0},{"dfo", 1},
-{"solar", 2},{"wind", 3},{"wind_offshore", 4},{"hydro", 5},{"coal",6},{"nuclear",7} };
+{"solar", 2},{"wind", 3},{"wind_offshore", 4},{"hydro", 5},{"coal",6},{"nuclear",7},
+		{"Ct",8},{"CC",9},{"CC-CCS",10},{"solar-UPV",11},{"wind-new",12},
+		{"wind-offshore-new",13},{"hydro-new",14},{"nuclear-new",15}};
 
 	ifstream fid1("profile_hydro_hourly.txt");
 	ifstream fid2("profile_wind_hourly.txt");
@@ -186,6 +190,7 @@ void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant> &
 		float pp;
 		iss >> pp;
 		Plants[sym2pltType["hydro"]].prod_profile.push_back(pp);
+		Plants[sym2pltType["hydro-new"]].prod_profile.push_back(pp);
 	}
 
 	while (getline(fid2, line))
@@ -194,6 +199,7 @@ void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant> &
 		float pp;
 		iss >> pp;
 		Plants[sym2pltType["wind"]].prod_profile.push_back(pp);
+		Plants[sym2pltType["wind-new"]].prod_profile.push_back(pp);
 	}
 	while (getline(fid3, line))
 	{
@@ -201,6 +207,7 @@ void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant> &
 		float pp;
 		iss >> pp;
 		Plants[sym2pltType["solar"]].prod_profile.push_back(pp);
+		Plants[sym2pltType["solar-UPV"]].prod_profile.push_back(pp);
 	}
 
 }
@@ -252,7 +259,7 @@ vector<branch> branch::read_branch_data(int nBus, string FN,
 
 			branch nb(i, (int)s0, s1, s1, (int)s2, s3, s4);
 			//Lnm[i*200+ (int)s0] = vector<int>();
-			Lnm[i*200+ (int)s0].push_back(lc);
+			Lnm[i * 200 + (int)s0].push_back(lc);
 			lc++;
 			Branches.push_back(nb);
 		}
@@ -314,7 +321,6 @@ void gnode::read_adjG_data(string FileName, vector<gnode>& Gnodes)
 
 }
 
-
 void gnode::read_adjE_data(string FileName, vector<gnode>& Gnodes)
 {
 	ifstream fid2(FileName);
@@ -346,7 +352,6 @@ void gnode::read_adjE_data(string FileName, vector<gnode>& Gnodes)
 	}
 
 }
-
 
 vector<pipe> pipe::read_pipe_data(string name)
 {

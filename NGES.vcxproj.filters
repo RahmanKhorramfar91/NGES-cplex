@@ -33,6 +33,9 @@
     <ClCompile Include="Electricity Model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="NG Model.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemData.h">

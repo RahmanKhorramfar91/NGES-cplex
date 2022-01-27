@@ -20,81 +20,85 @@ using namespace std;
 struct enode
 {
 	int num;
-	int fips;
-	int fips_order;
+	//int fips;
+	//int fips_order;
 	vector<int> adj_buses;
 	//vector<float> adj_dist;
 	vector<string> Init_plt_types;
 	vector<int> Init_plt_ind;
 	vector<float*> Init_plt_prod_lim; // [Pmin,Pmax]
 	vector<int> Init_plt_count;
-
-	enode(int n, int f, int fo)
+	vector<float> demand;
+	enode(int n)
 	{
 		this->num = n;
-		this->fips = f;
-		this->fips_order = fo;
 	}
 
 	static vector<enode> read_bus_data(string FileName);
 	static void read_adj_data(string FileName, vector<enode>& Enodes);
 	static void read_exist_plt_data(string FileName, vector<enode>& Enodes);
+	static void read_demand_data(string FileName, vector<enode>& Enodes);
 };
 
-struct Fips
-{
-	int fips_num;
-	int bus_count;
-
-	vector<float> demE;
-	Fips(int f, int bc)
-	{
-		this->fips_num = f;
-		this->bus_count = bc;
-	}
-
-	static vector<Fips> read_fips_data(string FileName);
-	static void read_demand_Data(string FileName, vector<Fips>& all_FIPS);
-};
+//struct Fips
+//{
+//	int fips_num;
+//	int bus_count;
+//
+//	vector<float> demE;
+//	Fips(int f, int bc)
+//	{
+//		this->fips_num = f;
+//		this->bus_count = bc;
+//	}
+//
+//	static vector<Fips> read_fips_data(string FileName);
+//	static void read_demand_Data(string FileName, vector<Fips>& all_FIPS);
+//};
 
 struct plant
 {
-	string fuel_type;
+	string type;
 	int num;  //0:'ng',1:'dfo',2:'solar',3:'wind',4:'wind_offshore', 5:'hydro',6:'coal',7:'nuclear'
-	int Umax = 10; // maximum number of plants in a Enode
+	int is_exis; // 1=the plant existing type (PowerSim Data), 0= the plant is new type (ATB)
+	int Umax = 500; // maximum number of plants in a Enode
 	int capex; // dollar per MW
 	int fix_cost;//dollar per count of type i per year
 	int var_cost;//dollar per MWh
-	float heat_rate;//MMBTU/MWh
 	float emis_rate;//ton/MMBTU
+	float heat_rate;//MMBTU/MWh
+	int lifetime; // year
 	int decom_cost;
-	int emis_cost; //$/ton
-	int lifespan; // year
-	// revisit these paramters laters
-	float Pmin;
 	float Pmax;  // MW
+	float Pmin;
 	float rampU;
 	float rampD;
+	int emis_cost; //$/ton
+	// revisit these paramters laters
+
 
 	vector<float> prod_profile;
 
-	plant(string t, int n, int cap, float pmax, float pmin, float ru, float rd, int f, int v, float h, float emi, int dec, int emic, int ls)
+	plant(string t, int n, int ise, int cap, int f, int v, float emi, float hr, int lt, int dec,
+		float pmax,float pmin, float ru, float rd, int emic)
 	{
-		this->fuel_type = t;
+		this->type = t;
 		this->num = n;
+		this->is_exis = ise;
 		this->capex = cap;
+		this->fix_cost = f;
+		this->var_cost = v;
+		this->emis_rate = emi;
+		this->heat_rate = hr;
+		this->lifetime = lt;
+		this->decom_cost = dec;
 		this->Pmax = pmax;
 		this->Pmin = pmin;
 		this->rampU = ru;
 		this->rampD = rd;
-		this->fix_cost = f;
-		this->var_cost = v;
-		this->heat_rate = h;
-		this->emis_rate = emi;
-		this->decom_cost = dec;
 		this->emis_cost = emic;
-		this->lifespan = ls;
 	}
+	
 	static vector<plant> read_new_plant_data(string FileName);
 	static void read_VRE_profile(string FileName1, string FileName2, string FileName3, vector<plant>& Plants);
 };
@@ -124,6 +128,22 @@ struct branch
 
 };
 
+struct eStore
+{
+	int energy_cost;// &/MWh
+	int power_cost; // &/MW
+	float eff_ch;  // charge efficiency
+	float eff_disCh; // discharge efficiency
+	eStore(int en, int pow, float ch, float dis)
+	{
+		this->energy_cost = en;
+		this->power_cost = pow;
+		this->eff_ch = ch;
+		this->eff_disCh = dis;
+	}
+	static vector<eStore> read_elec_storage_data(string FileName);
+
+};
 struct gnode
 {
 	int num;
@@ -196,7 +216,7 @@ struct Params
 	static vector<int> Te;
 	static vector<int> time_weight;
 	static vector<enode> Enodes;
-	static vector<Fips> all_FIPS;
 	static vector<plant> Plants;
 	static vector<branch> Branches;
+	static vector<eStore> Estorage;
 };

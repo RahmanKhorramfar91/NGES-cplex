@@ -42,7 +42,7 @@ int main()
 	auto start = chrono::high_resolution_clock::now();
 #pragma region Problem Setting
 	const int nRepDays = 2;
-	int PP = 1 * nRepDays;  // hours of planning for electricity network
+	int PP = 24 * nRepDays;  // hours of planning for electricity network
 	vector<int> Tg;  // days of planning
 	vector<int> RepDays{ 243, 321 };
 	vector<int> RepDaysCount{ 121, 244 };
@@ -68,8 +68,8 @@ int main()
 	 
 	// Uppper bound of Emission, 2018 emission for New England was 147 million metric tons(mmt)
 	// emission for 2 hours (out of 48 rep. hours) is 1.9e6, yearly 23 (mmt) in this model.
-	float Emis_lim = 20e6;
-	float RPS = 0.7;   // Renewable Portfolio Share
+	float Emis_lim = 4e6;
+	float RPS = 0.2;   // Renewable Portfolio Share
 	float WACC = 0.065;// Weighted average cost of capital to calculate CAPEX coefficient from ATB2021
 	int trans_unit_cost = 1800; // dollars per mile of trans. line
 #pragma endregion
@@ -84,6 +84,7 @@ int main()
 	float G_curt_cost = 1.5e6;
 	float pipe_per_mile = 7e+5;//https://www.gem.wiki/Oil_and_Gas_Pipeline_Construction_Costs
 	int pipe_lifespan = 50; // years, https://www.popsci.com/story/environment/oil-gas-pipelines-property/#:~:text=There%20are%20some%203%20million,%2C%20power%20plants%2C%20and%20homes.&text=Those%20pipelines%20have%20an%20average%20lifespan%20of%2050%20years.
+	float Ng_demand_growth_by_2050 = 0.5; // 50% https://www.eia.gov/todayinenergy/detail.php?id=42342
 #pragma endregion
 
 #pragma region Read Data
@@ -96,20 +97,16 @@ int main()
 	int nGnode = Gnodes.size();
 
 	// Read Electricity Data
-
 	// better to use std::unordered_map which is more efficient and faster
 	std::map<int, vector<int>> Lnm; //key: from_bus*200+to_bus, 200 is up_lim for number of buses
-
-	vector<enode> Enodes = enode::read_bus_data("bus_num_fips.txt");
+	vector<eStore> Estorage = eStore::read_elec_storage_data("storage_elec.txt");
+	vector<enode> Enodes = enode::read_bus_data("bus_num.txt");
 	enode::read_adj_data("bus_adj_Nodes.txt", Enodes);
 	enode::read_exist_plt_data("existing_plants.txt", Enodes);
+	enode::read_demand_data("elec_dem_per_zone_per_hour.txt", Enodes);
 	int nEnode = Enodes.size();
 
-	vector<Fips> all_FIPS = Fips::read_fips_data("bus_per_fips.txt");
-	Fips::read_demand_Data("elec_dem_per_fips_per_hour.txt", all_FIPS);
-	int nFIPS = all_FIPS.size();
-
-	vector<plant> Plants = plant::read_new_plant_data("plant_costs.txt");
+	vector<plant> Plants = plant::read_new_plant_data("plant_data.txt");
 	plant::read_VRE_profile("profile_hydro_hourly.txt",
 		"profile_wind_hourly.txt", "profile_solar_hourly.txt", Plants);
 
@@ -120,12 +117,12 @@ int main()
 #pragma endregion
 
 #pragma region Populate Params
-	Params::all_FIPS = all_FIPS;
 	Params::Branches = Branches;
 	Params::Enodes = Enodes;
 	Params::Gnodes = Gnodes;
 	Params::PipeLines = PipeLines;
 	Params::Plants = Plants;
+	Params::Estorage = Estorage;
 	Params::Tg = Tg;
 	Params::Te = Te;
 	Params::time_weight = time_weight;
@@ -150,7 +147,7 @@ int main()
 	int** XdecS = new int* [Params::Enodes.size()];
 
 	double LB = 0; double UB = 0;
-	Electricy_Network_Model(false, true);
+	//Electricy_Network_Model(false, true);
 	//FullModel(int_vars_relaxed, false);
 	//LB = LB_no_flow_lim(true, Xs, XestS, XdecS);// by relaxing limit constraints on transmission flow
 	//UB = UB_no_trans_consts(false, Xs, XestS, XdecS);

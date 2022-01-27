@@ -2,6 +2,7 @@
 #include"ProblemData.h"
 
 void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars);
+void NG_Network_Model(bool PrintVars);
 
 void FullModel(bool int_vars_relaxed, bool PrintVars);
 double LB_no_flow_lim(bool PrintVars, int** Xs, int** XestS, int** XdecS);
