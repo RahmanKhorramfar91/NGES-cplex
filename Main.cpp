@@ -152,7 +152,6 @@ int main()
 	//Electricy_Network_Model(false, true);
 	//NG_Network_Model(true);
 	NGES_Model(false, true);
-	//This is for github desktop as a welcome
 	//FullModel(int_vars_relaxed, false);
 	//LB = LB_no_flow_lim(true, Xs, XestS, XdecS);// by relaxing limit constraints on transmission flow
 	//UB = UB_no_trans_consts(false, Xs, XestS, XdecS);
