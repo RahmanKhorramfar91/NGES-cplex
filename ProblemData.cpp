@@ -21,8 +21,8 @@ float Params::pipe_per_mile;
 float Params::Emis_lim;
 float Params::RPS;
 int Params::pipe_lifespan;
-map<int, vector<int>> Params::Lnm;
-
+map<int, vector<int>> Params::Le;
+map<int, vector<int>> Params::Lg;
 
 
 
@@ -143,13 +143,13 @@ vector<plant> plant::read_new_plant_data(string name)
 		//	string t, int n, int ise, int cap, int f, int v, float emi, float hr, int lt, int dec,
 			//	float pmax, float ru, float rd, int emic
 		std::istringstream iss(line);
-		float n, ise, cap, f, v, emi, hr, lt, dec, pmax,pmin, ru, rd, emic;
+		float n, ise, cap, f, v, emi, hr, lt, dec, pmax, pmin, ru, rd, emic;
 		//float  n, capex,pmax, pmin,ru,rd, fix_cost, var_cost, decom_cost, emis_cost, lifespan;
 		string type;
 		float h, emis_rate;
-		iss >> type >> n >> ise >> cap >> f >> v >> emi >> hr >> lt >> dec >> pmax >>pmin>> ru >> rd >> emic;
+		iss >> type >> n >> ise >> cap >> f >> v >> emi >> hr >> lt >> dec >> pmax >> pmin >> ru >> rd >> emic;
 		//iss >> type >> n >> capex >>pmax>>pmin>>ru>>rd>> fix_cost >> var_cost >> h >> emis_rate >> decom_cost >> emis_cost >> lifespan;
-		plant np(type, (int)n, (int)ise, (int)cap, (int)f, (int)v, emi, hr, (int)lt, (int)dec, pmax,pmin, ru, rd, (int)emic);
+		plant np(type, (int)n, (int)ise, (int)cap, (int)f, (int)v, emi, hr, (int)lt, (int)dec, pmax, pmin, ru, rd, (int)emic);
 		NewPlants.push_back(np);
 	}
 	fid.close();
@@ -161,7 +161,7 @@ vector<eStore> eStore::read_elec_storage_data(string name)
 	vector<eStore> Estorage;
 	ifstream fid(name);
 	string line;
-	while (getline(fid,line))
+	while (getline(fid, line))
 	{
 		std::istringstream iss(line);
 		float en, pow, ch, dis;
@@ -178,7 +178,7 @@ void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant>& 
 	std::map<string, int> sym2pltType = { {"ng",0},{"dfo", 1},
 {"solar", 2},{"wind", 3},{"wind_offshore", 4},{"hydro", 5},{"coal",6},{"nuclear",7},
 		{"Ct",8},{"CC",9},{"CC-CCS",10},{"solar-UPV",11},{"wind-new",12},
-		{"wind-offshore-new",13},{"hydro-new",14},{"nuclear-new",15}};
+		{"wind-offshore-new",13},{"hydro-new",14},{"nuclear-new",15} };
 
 	ifstream fid1("profile_hydro_hourly.txt");
 	ifstream fid2("profile_wind_hourly.txt");
@@ -214,7 +214,7 @@ void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant>& 
 
 
 vector<branch> branch::read_branch_data(int nBus, string FN,
-	string FN0, string FN1, string FN2, string FN3, string FN4, map<int, vector<int>>& Lnm)
+	string FN0, string FN1, string FN2, string FN3, string FN4, map<int, vector<int>>& Le)
 {
 
 	vector<branch> Branches;
@@ -259,7 +259,7 @@ vector<branch> branch::read_branch_data(int nBus, string FN,
 
 			branch nb(i, (int)s0, s1, s1, (int)s2, s3, s4);
 			//Lnm[i*200+ (int)s0] = vector<int>();
-			Lnm[i * 200 + (int)s0].push_back(lc);
+			Le[i * 200 + (int)s0].push_back(lc);
 			lc++;
 			Branches.push_back(nb);
 		}
@@ -328,6 +328,11 @@ void gnode::read_adjE_data(string FileName, vector<gnode>& Gnodes)
 	int j = -1;
 	while (getline(fid2, line))
 	{
+		if (line == "\t") 
+		{ 
+			j++;
+			continue; 
+		}
 		string temp = "";
 		j++;
 		int if_two_tab = 0;
@@ -353,17 +358,20 @@ void gnode::read_adjE_data(string FileName, vector<gnode>& Gnodes)
 
 }
 
-vector<pipe> pipe::read_pipe_data(string name)
+vector<pipe> pipe::read_pipe_data(string name, map<int, vector<int>>& Lg)
 {
 	vector<pipe> PipeLines;
 	ifstream fid2(name);
 	string line;
+	int lc = 0;
 	while (getline(fid2, line))
 	{
 		float f, t, exi, le, ca;
 		std::istringstream iss(line);
 		iss >> f >> t >> exi >> le >> ca;
 		pipe p2((int)f, (int)t, (int)exi, le, ca);
+		Lg[(int)f * 200 + (int)t].push_back(lc);
+		lc++;
 		PipeLines.push_back(p2);
 	}
 

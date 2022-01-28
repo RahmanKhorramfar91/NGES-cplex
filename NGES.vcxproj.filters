@@ -21,7 +21,7 @@
     <ClCompile Include="ProblemData.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Coupled Model.cpp">
+    <ClCompile Include="NGES Model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="UBs.cpp">

@@ -124,7 +124,7 @@ struct branch
 	}
 	static vector<branch> read_branch_data(int nBus, string FN,
 		string FN0, string FN1, string FN2, string FN3, string FN4,
-		map<int, vector<int>>& Lnm);
+		map<int, vector<int>>& Le);
 
 };
 
@@ -182,7 +182,7 @@ struct pipe
 		this->length = le;
 		this->cap = ca;
 	}
-	static vector<pipe> read_pipe_data(string FileName);
+	static vector<pipe> read_pipe_data(string FileName, map<int, vector<int>> &Lg);
 };
 
 
@@ -209,10 +209,11 @@ struct Params
 	static vector<int> Tg;
 	static vector<gnode> Gnodes;
 	static vector<pipe> PipeLines;
+	static map<int, vector<int>> Lg;
 
 
 	// electricity data
-	static map<int, vector<int>> Lnm;
+	static map<int, vector<int>> Le;
 	static vector<int> Te;
 	static vector<int> time_weight;
 	static vector<enode> Enodes;

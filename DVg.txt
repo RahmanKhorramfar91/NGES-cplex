@@ -1,0 +1,46 @@
+Elapsed time: 8
+	 NG Network Obj Value:8.73834e+09
+	 Gap: 0.00852209 Status:Optimal
+	 Pipeline Establishment Cost: 4.61611e+06
+	 NG Storage Cost: 0
+	 NG Load Shedding Cost: 0
+supply[0][0] = 303.4
+supply[0][1] = 199.8
+supply[2][0] = 35.9
+supply[2][1] = 42.3
+supply[5][0] = 20.8
+supply[5][1] = 27.5
+supply[7][0] = 13.9
+supply[7][1] = 22.9
+supply[12][0] = 17
+supply[12][1] = 14.3
+supply[15][0] = 20.6
+supply[15][1] = 39.9
+Zg[1][9] = 1
+Zg[10][14] = 1
+Zg[13][8] = 1
+Zg[14][10] = 1
+flowGG[0][9][1]= 80
+flowGG[1][9][0]= 179.1
+flowGG[1][9][1]= 212.4
+flowGG[3][14][0]= 45.65
+flowGG[3][14][1]= 54.05
+flowGG[4][12][0]= 18.6
+flowGG[4][12][1]= 25
+flowGG[6][13][0]= 12.3
+flowGG[6][13][1]= 15.5
+flowGG[8][13][0]= 36.65
+flowGG[8][13][1]= 61.6
+flowGG[9][1][0]= 32.7
+flowGG[9][1][1]= 54.85
+flowGG[10][14][0]= 173
+flowGG[10][14][1]= 173
+flowGG[10][14][0]= 18.35
+flowGG[10][14][1]= 152.05
+flowGG[11][14][0]= 38.7
+flowGG[11][14][1]= 65
+flowGG[13][8][0]= 123.5
+flowGG[13][8][1]= 105.4
+flowGG[14][10][0]= 234.2
+flowGG[14][10][1]= 265.7
+

@@ -42,7 +42,8 @@ void NG_Network_Model(bool PrintVars)
 	float G_curt_cost = Params::G_curt_cost;
 	float pipe_per_mile = Params::pipe_per_mile;
 	int pipe_lifespan = Params::pipe_lifespan;
-	map<int, vector<int>> Lnm = Params::Lnm;
+	map<int, vector<int>> Le = Params::Le;
+	map<int, vector<int>> Lg = Params::Lg;
 	vector<int> RepDaysCount = Params::RepDaysCount;
 	float Emis_lim = Params::Emis_lim;
 	float RPS = Params::RPS;
@@ -82,26 +83,34 @@ void NG_Network_Model(bool PrintVars)
 
 
 
-	IloExpr exp0(env);
-
 #pragma region NG network related costs
-	for (int i = 0; i < PipeLines.size(); i++)
+	IloExpr exp0(env);
+	IloExpr exp_pipe(env);
+	IloExpr exp_curt(env);
+	IloExpr exp_store(env);
+
+	for (int i = 0; i < nPipe; i++)
 	{
 		float s1 = std::pow(1.0 / (1 + WACC), pipe_lifespan);
 		float capco = WACC / (1 - s1);
-		//int fn = PipeLines[i].from_node;
-		//int tn = PipeLines[i].to_node;
 		float cost1 = PipeLines[i].length * pipe_per_mile;
 
-		exp0 += capco * cost1 * Zg[i];
+		exp_pipe += capco * cost1 * Zg[i];
 	}
 	for (int k = 0; k < nGnode; k++)
 	{
 		for (int tau = 0; tau < Tg.size(); tau++)
 		{
-			exp0 += G_curt_cost * curtG[k][tau];
+			exp_curt += time_weight[tau] * G_curt_cost * curtG[k][tau];
 		}
 	}
+	exp0 = exp_pipe + exp_curt + exp_store;
+	IloNumVar pipe_cost(env, 0, IloInfinity, ILOFLOAT);
+	IloNumVar gSshedd_cost(env, 0, IloInfinity, ILOFLOAT);
+	IloNumVar gStore_cost(env, 0, IloInfinity, ILOFLOAT);
+	Model.add(pipe_cost == exp_pipe);
+	Model.add(gSshedd_cost == exp_curt);
+	Model.add(gStore_cost == exp_store);
 #pragma endregion
 
 	Model.add(IloMinimize(env, exp0));
@@ -110,48 +119,41 @@ void NG_Network_Model(bool PrintVars)
 
 
 #pragma region NG Network Constraint
-	// C1: flow limit for NG
+	// C1, C2: flow limit for NG
 	float ave_cap = 448;
-	for (int i = 0; i < PipeLines.size(); i++)
+	for (int i = 0; i < nPipe; i++)
 	{
-		int fn = PipeLines[i].from_node;
-		int tn = PipeLines[i].to_node;
 		int is_exist = PipeLines[i].is_exist;
 		for (int tau = 0; tau < Tg.size(); tau++)
 		{
 			if (is_exist == 1)
 			{
-				Model.add(flowGG[fn][tn][tau] <= PipeLines[i].cap + ave_cap * Zg[i]);
+				Model.add(flowGG[i][tau] <= PipeLines[i].cap);
 			}
 			else
 			{
-				Model.add(flowGG[fn][tn][tau] <= PipeLines[i].cap * Zg[i]);
+				Model.add(flowGG[i][tau] <= PipeLines[i].cap * Zg[i]);
 			}
 		}
 	}
 
-	//C2: flow balance, NG node
+	//C3: flow balance, NG node
 	for (int k = 0; k < nGnode; k++)
 	{
 		for (int tau = 0; tau < Tg.size(); tau++)
 		{
-			IloExpr exp2(env);
-			for (int kp : Gnodes[k].adjG) {
-				exp2 += flowGG[k][kp][tau];
-				//Model.add(flowGG[k][kp][tau] >= 0);
-				Model.add(IloAbs(flowGG[k][kp][tau] + flowGG[kp][k][tau]) <= 1e-2);
-			}
-
-			IloExpr exp3(env);
-			for (int n : Gnodes[k].adjE)
+			IloExpr exp_gg_flow(env);
+			IloExpr exp_ge_flow(env);
+			IloExpr exp_store(env);
+			for (int kp : Gnodes[k].adjG)
 			{
-				exp3 += flowGE[k][n][tau];
-				Model.add(flowGE[k][n][tau]);
+				int key1 = k * 200 + kp;
+				// check if this key exist, if not, the other order exisit
+				if (Le.count(key1) == 0) { key1 = k * 200 + kp; }
+				for (int l2 : Lg[key1]) { exp_gg_flow += flowGG[l2][tau]; }
 			}
-
-			Model.add(supply[k][tau] - exp2 - exp3 + curtG[k][tau] == Gnodes[k].demG[tau]);
-			//Model.add(supply[k][tau] - exp2 + curtG[k][tau] == Gnodes[k].demG[tau]);
-
+			for (int n : Gnodes[k].adjE) { exp_ge_flow += flowGE[k][n][tau]; }
+			Model.add(supply[k][tau] + exp_gg_flow - exp_ge_flow + curtG[k][tau] == Gnodes[k].demG[Tg[tau]]);
 		}
 	}
 
@@ -172,6 +174,110 @@ void NG_Network_Model(bool PrintVars)
 #pragma endregion
 
 
+#pragma region Solve the model
+	IloCplex cplex(Model);
+	cplex.setParam(IloCplex::TiLim, 7200);
+	cplex.setParam(IloCplex::EpGap, 0.001); // 0.1%
+	//cplex.exportModel("MA_LP.lp");
+
+	//cplex.setOut(env.getNullStream());
+
+	//cplex.setParam(IloCplex::Param::MIP::Strategy::Branch, 1); //Up/down branch selected first (1,-1),  default:automatic (0)
+	//cplex.setParam(IloCplex::Param::MIP::Strategy::BBInterval, 7);// 0 to 7
+	//cplex.setParam(IloCplex::Param::MIP::Strategy::NodeSelect, 2);
+	//https://www.ibm.com/support/knowledgecenter/SSSA5P_12.9.0/ilog.odms.cplex.help/CPLEX/UsrMan/topics/discr_optim/mip/performance/20_node_seln.html
+	//cplex.setParam(IloCplex::Param::MIP::Strategy::VariableSelect, 4);//-1 to 4
+	//cplex.setParam(IloCplex::Param::RootAlgorithm, 4); /000 to 6
+	if (!cplex.solve()) {
+		env.error() << "Failed to optimize!!!" << endl;
+		std::cout << cplex.getStatus();
+		throw(-1);
+	}
+
+	float obj_val = cplex.getObjValue();
+	float gap = cplex.getMIPRelativeGap();
+	auto end = chrono::high_resolution_clock::now();
+	auto Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	std::cout << "Elapsed time: " << Elapsed << endl;
+	std::cout << "\t Obj Value:" << obj_val << endl;
+	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
+
+#pragma endregion
+
+	if (PrintVars)
+	{
+#pragma region print NG network variables
+		ofstream fid2;
+		fid2.open("DVg.txt");
+		fid2 << "Elapsed time: " << Elapsed << endl;
+		fid2 << "\t NG Network Obj Value:" << obj_val << endl;
+		fid2 << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
+		fid2 << "\t Pipeline Establishment Cost: " << cplex.getValue(pipe_cost) << endl;
+		fid2 << "\t NG Storage Cost: " << cplex.getValue(gStore_cost) << endl;
+		fid2 << "\t NG Load Shedding Cost: " << cplex.getValue(gSshedd_cost) << endl;
+		//float** supS = new float* [nGnode];
+		for (int k = 0; k < nGnode; k++)
+		{
+			for (int tau = 0; tau < Tg.size(); tau++)
+			{
+				float s1 = cplex.getValue(supply[k][tau]);
+				if (s1 > 0)
+				{
+					fid2 << "supply[" << k << "][" << tau << "] = " << s1 << endl;
+				}
+			}
+		}
+
+		for (int k = 0; k < nGnode; k++)
+		{
+			for (int tau = 0; tau < Tg.size(); tau++)
+			{
+				float s1 = cplex.getValue(curtG[k][tau]);
+				if (s1 > 0)
+				{
+					fid2 << "CurtG[" << k << "][" << tau << "] = " << s1 << endl;
+				}
+			}
+		}
+		for (int i = 0; i < nPipe; i++)
+		{
+			float s1 = cplex.getValue(Zg[i]);
+			if (s1 > 0.01)
+			{
+				fid2 << "Zg[" << PipeLines[i].from_node << "][" << PipeLines[i].to_node << "] = " << s1 << endl;
+			}
+		}
+
+		for (int i = 0; i < nPipe; i++)
+		{
+			for (int tau = 0; tau < Tg.size(); tau++)
+			{
+				float s1 = cplex.getValue(flowGG[i][tau]);
+				if (s1 > 0.001)
+				{
+					fid2 << "flowGG[" << PipeLines[i].from_node << "][" << PipeLines[i].to_node << "][" << tau << "]= " << s1 << endl;
+				}
+			}
+		}
+		fid2 << endl;
+		for (int k = 0; k < nGnode; k++)
+		{
+			for (int kp : Gnodes[k].adjE)
+			{
+				for (int tau = 0; tau < Tg.size(); tau++)
+				{
+					float s1 = cplex.getValue(flowGE[k][kp][tau]);
+					if (std::abs(s1) > 0.1)
+					{
+						fid2 << "flowGE[" << k << "][" << kp << "][" << tau << "] = " << s1 << endl;
+					}
+				}
+			}
+		}
+
+		fid2.close();
+#pragma endregion
+	}
 
 
 

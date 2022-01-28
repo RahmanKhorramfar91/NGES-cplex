@@ -89,16 +89,17 @@ int main()
 
 #pragma region Read Data
 	// Read Natural Gas Data
+	std::map<int, vector<int>> Lg; //key: from_ng_node*200+to_ng_node, 200 is up_lim for number of buses
 	vector<gnode> Gnodes = gnode::read_gnode_data("ng_nodes.txt");
 	gnode::read_adjG_data("ng_adjG.txt", Gnodes);
 	gnode::read_adjE_data("ng_adjE.txt", Gnodes);
 	gnode::read_ng_demand_data("ng_daily_dem.txt", Gnodes);
-	vector<pipe> PipeLines = pipe::read_pipe_data("g2g_br.txt");
+	vector<pipe> PipeLines = pipe::read_pipe_data("g2g_br.txt",Lg);
 	int nGnode = Gnodes.size();
 
 	// Read Electricity Data
 	// better to use std::unordered_map which is more efficient and faster
-	std::map<int, vector<int>> Lnm; //key: from_bus*200+to_bus, 200 is up_lim for number of buses
+	std::map<int, vector<int>> Le; //key: from_bus*200+to_bus, 200 is up_lim for number of buses
 	vector<eStore> Estorage = eStore::read_elec_storage_data("storage_elec.txt");
 	vector<enode> Enodes = enode::read_bus_data("bus_num.txt");
 	enode::read_adj_data("bus_adj_Nodes.txt", Enodes);
@@ -111,7 +112,7 @@ int main()
 		"profile_wind_hourly.txt", "profile_solar_hourly.txt", Plants);
 
 	vector<branch> Branches = branch::read_branch_data(nEnode, "b2b_br_per_node.txt", "b2b_br.txt", "b2b_br_dist.txt",
-		"b2b_br_is_existing.txt", "b2b_br_maxFlow.txt", "b2b_br_Suscept.txt", Lnm);
+		"b2b_br_is_existing.txt", "b2b_br_maxFlow.txt", "b2b_br_Suscept.txt", Le);
 
 
 #pragma endregion
@@ -137,7 +138,8 @@ int main()
 	Params::G_curt_cost = G_curt_cost;
 	Params::pipe_per_mile = pipe_per_mile;
 	Params::pipe_lifespan = pipe_lifespan;
-	Params::Lnm = Lnm;
+	Params::Le = Le;
+	Params::Lg = Lg;
 	Params::Emis_lim = Emis_lim;
 	Params::RPS = RPS;
 #pragma endregion
@@ -148,14 +150,14 @@ int main()
 
 	double LB = 0; double UB = 0;
 	//Electricy_Network_Model(false, true);
+	//NG_Network_Model(true);
+	NGES_Model(false, true);
+	//This is for github desktop as a welcome
 	//FullModel(int_vars_relaxed, false);
 	//LB = LB_no_flow_lim(true, Xs, XestS, XdecS);// by relaxing limit constraints on transmission flow
 	//UB = UB_no_trans_consts(false, Xs, XestS, XdecS);
 	//UB = UB_feasSol_X_Xest_Xdec_given(Xs, XestS, XdecS);
 	//UB = UB_feasSol_X_var_given(Xs);
-
-
-
 	// system("pause");
 	return 0;
 }
