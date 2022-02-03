@@ -3,6 +3,8 @@ vector<gnode> Params::Gnodes;
 vector<pipe> Params::PipeLines;
 vector<enode> Params::Enodes;
 vector<eStore> Params::Estorage;
+vector<exist_gSVL> Params::Exist_SVL;
+vector<SVL> Params::SVLs;
 vector<plant> Params::Plants;
 vector<branch> Params::Branches;
 vector<int> Params::Tg;
@@ -132,7 +134,6 @@ void enode::read_demand_data(string name, vector<enode>& Enodes)
 }
 
 
-
 vector<plant> plant::read_new_plant_data(string name)
 {
 	vector<plant> NewPlants;
@@ -143,13 +144,13 @@ vector<plant> plant::read_new_plant_data(string name)
 		//	string t, int n, int ise, int cap, int f, int v, float emi, float hr, int lt, int dec,
 			//	float pmax, float ru, float rd, int emic
 		std::istringstream iss(line);
-		float n, ise, cap, f, v, emi, hr, lt, dec, pmax, pmin, ru, rd, emic;
+		float n, ise, cap, f, v, emi, hr, lt, dec, pmax, pmin, ru, rd, emic,numM;
 		//float  n, capex,pmax, pmin,ru,rd, fix_cost, var_cost, decom_cost, emis_cost, lifespan;
 		string type;
 		float h, emis_rate;
-		iss >> type >> n >> ise >> cap >> f >> v >> emi >> hr >> lt >> dec >> pmax >> pmin >> ru >> rd >> emic;
+		iss >> type >> n >> ise >> cap >> f >> v >> emi >> hr >> lt >> dec >> pmax >> pmin >> ru >> rd >> emic>>numM;
 		//iss >> type >> n >> capex >>pmax>>pmin>>ru>>rd>> fix_cost >> var_cost >> h >> emis_rate >> decom_cost >> emis_cost >> lifespan;
-		plant np(type, (int)n, (int)ise, (int)cap, (int)f, (int)v, emi, hr, (int)lt, (int)dec, pmax, pmin, ru, rd, (int)emic);
+		plant np(type, (int)n, (int)ise, (int)cap, (int)f, (int)v, emi, hr, (int)lt, (int)dec, pmax, pmin, ru, rd, (int)emic,(int)numM);
 		NewPlants.push_back(np);
 	}
 	fid.close();
@@ -280,16 +281,64 @@ vector<gnode> gnode::read_gnode_data(string name)
 	string line;
 	while (getline(fid2, line))
 	{
-		float num, fips, capU;
+		float num, fips, outDem, capU, svl1, svl2;
 		std::istringstream iss(line);
 
-		iss >> num >> fips >> capU;
-		gnode gn((int)num, (int)fips, capU);
+		iss >> num >> fips >> outDem >> capU >> svl1 >> svl2;
+		vector<int> svls;
+		svls.push_back(svl1);
+		svls.push_back(svl2);
+		gnode gn((int)num, (int)fips, (int)outDem, (int)capU, svls);
 		Gnodes.push_back(gn);
 	}
+	fid2.close();
 	return Gnodes;
 }
-void gnode::read_adjG_data(string FileName, vector<gnode>& Gnodes)
+
+vector<exist_gSVL> exist_gSVL::read_exist_SVL_data(string name)
+{
+	vector<exist_gSVL> Exist_SVL;
+	ifstream fid;
+	fid.open(name);
+	string line;
+	int count = 0;
+	while (getline(fid, line))
+	{
+		float  a, b, c;
+		std::istringstream iss(line);
+		iss >> a >> b >> c;
+		exist_gSVL esvl(count, a, b, c);
+		Exist_SVL.push_back(esvl);
+		count++;
+	}
+	fid.close();
+	return Exist_SVL;
+}
+vector<SVL> SVL::read_SVL_data(string name)
+{
+
+	vector<SVL> SVLs;
+	ifstream fid;
+	fid.open(name);
+	string line;
+	int count = 0;
+	while (getline(fid, line))
+	{
+		float  a, b, c, d;
+		std::istringstream iss(line);
+		iss >> a >> b >> c >> d;
+		SVL svl((int)a, (int)b, c, d);
+		SVLs.push_back(svl);
+		count++;
+	}
+	fid.close();
+	return SVLs;
+
+
+
+
+}
+void gnode::read_Lexp_data(string FileName, vector<gnode>& Gnodes)
 {
 	ifstream fid2(FileName);
 	string line;
@@ -308,7 +357,43 @@ void gnode::read_adjG_data(string FileName, vector<gnode>& Gnodes)
 				{
 					break;
 				}
-				Gnodes[j].adjG.push_back(std::stoi(temp));
+				Gnodes[j].Lexp.push_back(std::stoi(temp));
+				temp = "";
+			}
+			else
+			{
+				temp.push_back(line[i]);
+				if_two_tab = 0;
+			}
+		}
+	}
+
+}
+void gnode::read_Limp_data(string FileName, vector<gnode>& Gnodes)
+{
+	ifstream fid2(FileName);
+	string line;
+	int j = -1;
+	while (getline(fid2, line))
+	{
+		if (line[0] == '\t')
+		{
+			j++;
+			continue;
+		}
+		string temp = "";
+		j++;
+		int if_two_tab = 0;
+		for (int i = 0; i < line.length(); i++)
+		{
+			if (line[i] == '\t' || i == line.length() - 1)
+			{
+				if_two_tab++;
+				if (if_two_tab > 1) // end of number
+				{
+					break;
+				}
+				Gnodes[j].Limp.push_back(std::stoi(temp));
 				temp = "";
 			}
 			else
@@ -328,10 +413,10 @@ void gnode::read_adjE_data(string FileName, vector<gnode>& Gnodes)
 	int j = -1;
 	while (getline(fid2, line))
 	{
-		if (line == "\t") 
-		{ 
+		if (line == "\t")
+		{
 			j++;
-			continue; 
+			continue;
 		}
 		string temp = "";
 		j++;

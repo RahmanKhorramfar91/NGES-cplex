@@ -61,7 +61,7 @@ struct plant
 	string type;
 	int num;  //0:'ng',1:'dfo',2:'solar',3:'wind',4:'wind_offshore', 5:'hydro',6:'coal',7:'nuclear'
 	int is_exis; // 1=the plant existing type (PowerSim Data), 0= the plant is new type (ATB)
-	int Umax = 500; // maximum number of plants in a Enode
+	int Umax; // maximum number of plants in a Enode
 	int capex; // dollar per MW
 	int fix_cost;//dollar per count of type i per year
 	int var_cost;//dollar per MWh
@@ -80,7 +80,7 @@ struct plant
 	vector<float> prod_profile;
 
 	plant(string t, int n, int ise, int cap, int f, int v, float emi, float hr, int lt, int dec,
-		float pmax,float pmin, float ru, float rd, int emic)
+		float pmax, float pmin, float ru, float rd, int emic, int max_num)
 	{
 		this->type = t;
 		this->num = n;
@@ -97,8 +97,9 @@ struct plant
 		this->rampU = ru;
 		this->rampD = rd;
 		this->emis_cost = emic;
+		this->Umax = max_num;
 	}
-	
+
 	static vector<plant> read_new_plant_data(string FileName);
 	static void read_VRE_profile(string FileName1, string FileName2, string FileName3, vector<plant>& Plants);
 };
@@ -144,24 +145,33 @@ struct eStore
 	static vector<eStore> read_elec_storage_data(string FileName);
 
 };
+
+
+
 struct gnode
 {
 	int num;
 	int fips;
 	vector<float> demG;
-	float injU;
-	float injL = 0.0;
-	vector<int> adjG;
+	int out_dem;
+	int injU;
+	int injL = 0.0;
+	vector<int> Lexp;
+	vector<int> Limp;
 	vector<int> adjE;
-	gnode(int n, int f, int inj)
+	vector<int> adjS;
+	gnode(int n, int f, int od, int inj, vector<int> as)
 	{
 		this->num = n;
 		this->fips = f;
+		this->out_dem = od;
 		this->injU = inj;
+		this->adjS = as;
 	}
 
 	static vector<gnode> read_gnode_data(string FileName);
-	static void read_adjG_data(string FileName, vector<gnode>& Gnodes);
+	static void read_Lexp_data(string FileName, vector<gnode>& Gnodes);
+	static void read_Limp_data(string FileName, vector<gnode>& Gnodes);
 	static void read_adjE_data(string FileName, vector<gnode>& Gnodes);
 	static void read_ng_demand_data(string FileName, vector<gnode>& Gnodes);
 };
@@ -182,9 +192,45 @@ struct pipe
 		this->length = le;
 		this->cap = ca;
 	}
-	static vector<pipe> read_pipe_data(string FileName, map<int, vector<int>> &Lg);
+	static vector<pipe> read_pipe_data(string FileName, map<int, vector<int>>& Lg);
 };
 
+struct exist_gSVL
+{
+	int num;
+	int store_cap; // max storage capacity
+	int vap_cap; // max vaporization capacity
+	int liq_cap; // max liquefaction capacity
+
+	exist_gSVL(int n, int sc, int vc, int lc)
+	{
+		this->num = n;
+		this->store_cap = sc;
+		this->vap_cap = vc;
+		this->liq_cap = lc;
+	}
+	static vector<exist_gSVL> read_exist_SVL_data(string FL);
+};
+struct SVL
+{
+	// SVL 0 : Storage facility
+	// SVL 1: Vaporization facility
+	// SVL 2: Liquefaction facility
+	int Capex;
+	int FOM;
+	float eff_ch;  // charge efficiency
+	float eff_disCh; // discharge efficiency
+	float BOG = 6e-6; // Boil-off gas, Dharik: The boiled off gas is sent to the pipeline network. You can convert this to an hourly rate and model this as the minimum discharge of the tank in each hour
+	SVL(int cp, int fm, float ch, float dis )
+	{
+		this->Capex = cp;
+		this->FOM = fm;
+		this->eff_ch = ch;
+		this->eff_disCh = dis;
+	}
+
+	static vector<SVL> read_SVL_data(string FL);
+};
 
 struct Params
 {
@@ -210,6 +256,8 @@ struct Params
 	static vector<gnode> Gnodes;
 	static vector<pipe> PipeLines;
 	static map<int, vector<int>> Lg;
+	static vector<exist_gSVL> Exist_SVL;
+	static vector<SVL> SVLs;
 
 
 	// electricity data

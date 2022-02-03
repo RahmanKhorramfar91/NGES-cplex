@@ -1,7 +1,6 @@
 #include"Models.h"
 
-
-double NGES_Model(bool int_vars_relaxed, bool PrintVars)
+double inv_vars_fixed_flow_equation_relaxed(bool PrintVars, int** Xs, int** XestS, int** XdecS, double*** Ps)
 {
 	auto start = chrono::high_resolution_clock::now();
 #pragma region Fetch Data
@@ -58,8 +57,8 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 	IloNumVarArray Ze(env, nBr, 0, IloInfinity, ILOBOOL);
 
 
-	NumVar2D Xest(env, nEnode); // integer (continues) for plants
-	NumVar2D Xdec(env, nEnode); // integer (continues) for plants
+	//NumVar2D Xest(env, nEnode); // integer (continues) for plants
+	//NumVar2D Xdec(env, nEnode); // integer (continues) for plants
 	NumVar2D YeCD(env, nEnode); // continuous: charge/discharge capacity
 	NumVar2D YeLev(env, nEnode); // continuous: charge/discharge level
 	NumVar2D theta(env, nEnode); // continuous phase angle
@@ -70,7 +69,7 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 	NumVar3D eSdis(env, nEnode);// power discharge to storage
 	NumVar3D eSlev(env, nEnode);// power level at storage
 
-	NumVar2D X(env, nEnode); // integer (continues)
+	//NumVar2D X(env, nEnode); // integer (continues)
 	NumVar2D flowE(env, nBr); // unlike the paper, flowE subscripts are "ntm" here
 	for (int b = 0; b < nBr; b++)
 	{
@@ -78,18 +77,11 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 	}
 	for (int n = 0; n < nEnode; n++)
 	{
-		if (int_vars_relaxed)
-		{
-			Xest[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOFLOAT);
-			Xdec[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOFLOAT);
-			X[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOFLOAT);
-		}
-		else
-		{
-			Xest[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOINT);
-			Xdec[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOINT);
-			X[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOINT);
-		}
+
+		//Xest[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOINT);
+		//Xdec[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOINT);
+		//X[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOINT);
+
 
 		theta[n] = IloNumVarArray(env, Te.size(), -pi, pi, ILOFLOAT);
 		curtE[n] = IloNumVarArray(env, Te.size(), 0, IloInfinity, ILOFLOAT);
@@ -189,14 +181,14 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 			// Investment/decommission cost of plants
 			float s1 = std::pow(1.0 / (1 + WACC), Plants[i].lifetime);
 			float capco = WACC / (1 - s1);
-			ex_est += capco * Plants[i].capex * Xest[n][i];
-			ex_decom += Plants[i].decom_cost * Xdec[n][i];
+			ex_est += capco * Plants[i].capex * XestS[n][i];
+			ex_decom += Plants[i].decom_cost * XdecS[n][i];
 		}
 
 		// fixed cost
 		for (int i = 0; i < nPlt; i++)
 		{
-			ex_fix += Plants[i].fix_cost * X[n][i];
+			ex_fix += Plants[i].fix_cost * Xs[n][i];
 		}
 		// var+fuel costs of plants
 		for (int t = 0; t < Te.size(); t++)
@@ -341,26 +333,26 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 	// 1) existing types can not be established because there are new equivalent types
 	// 2) new types cannot be decommissioned
 	// 3) no new wind-offshore can be established as all buses are located in-land
-	for (int n = 0; n < nEnode; n++)
-	{
-		for (int i = 0; i < nPlt; i++)
-		{
-			//// do not allow decommissioning of hydro plants
-			//Model.add(Xdec[n][5] == 0);
-			if (Plants[i].type == "wind-offshore-new")
-			{
-				Model.add(Xest[n][i] == 0);
-			}
-			if (Plants[i].is_exis == 1)
-			{
-				Model.add(Xest[n][i] == 0);
-			}
-			else
-			{
-				Model.add(Xdec[n][i] == 0);
-			}
-		}
-	}
+	//for (int n = 0; n < nEnode; n++)
+	//{
+	//	for (int i = 0; i < nPlt; i++)
+	//	{
+	//		//// do not allow decommissioning of hydro plants
+	//		//Model.add(Xdec[n][5] == 0);
+	//		if (Plants[i].type == "wind-offshore-new")
+	//		{
+	//			Model.add(Xest[n][i] == 0);
+	//		}
+	//		if (Plants[i].is_exis == 1)
+	//		{
+	//			Model.add(Xest[n][i] == 0);
+	//		}
+	//		else
+	//		{
+	//			Model.add(Xdec[n][i] == 0);
+	//		}
+	//	}
+	//}
 #pragma endregion
 
 
@@ -368,42 +360,10 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 	int const_size = 0;
 
 	// C1: number of generation units at each node
-	int existP = 0;
-	for (int n = 0; n < nEnode; n++)
-	{
-		int j = 0;
-		bool if_off_shore = std::find(Enodes[n].Init_plt_types.begin(), Enodes[n].Init_plt_types.end(), "wind_offshore") != Enodes[n].Init_plt_types.end();
 
-		for (int i = 0; i < nPlt; i++)
-		{
-			// is plant type i part of initial plants types of node n:
-			bool isInd = std::find(Enodes[n].Init_plt_ind.begin(), Enodes[n].Init_plt_ind.end(), i) != Enodes[n].Init_plt_ind.end();
-			if (isInd)
-			{
-				// find the index of plant in the set of Init_plants of the node
-				string tp = pltType2sym[i];
-				int ind1 = std::find(Enodes[n].Init_plt_types.begin(), Enodes[n].Init_plt_types.end(), tp) - Enodes[n].Init_plt_types.begin();
-				Model.add(X[n][i] == Enodes[n].Init_plt_count[ind1] - Xdec[n][i] + Xest[n][i]);
-				const_size++;
-				j++;
-			}
-			else
-			{
-				Model.add(X[n][i] == -Xdec[n][i] + Xest[n][i]);
-				const_size++;
-			}
-		}
-	}
 
 	// C2: maximum number of each plant type
-	for (int n = 0; n < nEnode; n++)
-	{
-		for (int i = 0; i < nPlt; i++)
-		{
-			Model.add(X[n][i] <= Plants[i].Umax);
-			const_size++;
-		}
-	}
+
 
 	//C3, C4: production limit, ramping
 	for (int n = 0; n < nEnode; n++)
@@ -412,16 +372,15 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 		{
 			for (int i = 0; i < nPlt; i++)
 			{
-				Model.add(prod[n][t][i] >= Plants[i].Pmin * X[n][i]);
-				Model.add(prod[n][t][i] <= Plants[i].Pmax * X[n][i]);
+				Model.add(prod[n][t][i] >= Plants[i].Pmin * Xs[n][i]);
+				Model.add(prod[n][t][i] <= Plants[i].Pmax * Xs[n][i]);
 				const_size += 2;
 
 				if (t > 0)
 				{
-					Model.add(-Plants[i].rampD * X[n][i] <= prod[n][t][i] - prod[n][t - 1][i]);
-					Model.add(prod[n][t][i] - prod[n][t - 1][i] <= Plants[i].rampU * X[n][i]);
+					Model.add(-Plants[i].rampD * Xs[n][i] <= prod[n][t][i] - prod[n][t - 1][i]);
+					Model.add(prod[n][t][i] - prod[n][t - 1][i] <= Plants[i].rampU * Xs[n][i]);
 					const_size += 2;
-
 				}
 
 			}
@@ -489,12 +448,12 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 				ex_store += eSdis[n][t][r] - eSch[n][t][r];
 			}
 			float dem = Enodes[n].demand[Te[t]];
-			//Model.add(exp1 + curtE[n][t] == dem); // ignore transmission
-			Model.add(exp_prod + exp_trans + ex_store + curtE[n][t] == dem); const_size++;
+			//Model.add(exp_prod + ex_store + curtE[n][t] == dem);
+			Model.add(exp_prod + exp_trans + ex_store + curtE[n][t] == dem);
 		}
 	}
 	// C8: flow equation
-	int ebr = 0;
+	/*int ebr = 0;
 	for (int br = 0; br < Branches.size(); br++)
 	{
 		int fb = Branches[br].from_bus;
@@ -515,7 +474,7 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 				Model.add(-1e-2 - Branches[br].suscep * 24 * (1 - Ze[br]) <= flowE[br][t] - Branches[br].suscep * (theta[tb][t] - theta[fb][t]));
 			}
 		}
-	}
+	}*/
 
 	// C9: phase angle (theta) limits. already applied in the definition of the variable
 	for (int n = 0; n < nEnode; n++)
@@ -538,7 +497,7 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 			{
 				if (Plants[i].type == "solar" || Plants[i].type == "wind" || Plants[i].type == "hydro" || Plants[i].type == "solar-UPV" || Plants[i].type == "wind-new" || Plants[i].type == "hydro-new")
 				{
-					Model.add(prod[n][t][i] <= Plants[i].prod_profile[Te[t]] * X[n][i]);
+					Model.add(prod[n][t][i] <= Plants[i].prod_profile[Te[t]] * Xs[n][i]);
 					const_size++;
 				}
 			}
@@ -658,7 +617,7 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 			Model.add(supply[k][tau] >= Gnodes[k].injL);
 			Model.add(supply[k][tau] <= Gnodes[k].injU);
 
-			Model.add(curtG[k][tau] <= Gnodes[k].demG[Tg[tau]] );
+			Model.add(curtG[k][tau] <= Gnodes[k].demG[Tg[tau]]);
 		}
 	}
 
@@ -789,7 +748,6 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 #pragma endregion
 
 
-
 #pragma region Solve the model
 	IloCplex cplex(Model);
 	//cplex.setParam(IloCplex::TiLim, 7200);
@@ -840,6 +798,22 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 	std::cout << "Emission tonnage for 2050: " << cplex.getValue(Emit_var) << endl;
 #pragma endregion
 
+
+#pragma region Populate investment decisions
+	for (int n = 0; n < nEnode; n++)
+	{
+		Ps[n] = new double* [Te.size()];
+		for (int t = 0; t < Te.size(); t++)
+		{
+			Ps[n][t] = new double[nPlt]();
+			for (int i = 0; i < nPlt; i++)
+			{
+				Ps[n][t][i] = cplex.getValue(prod[n][t][i]);
+			}
+		}
+	}
+#pragma endregion
+
 	if (PrintVars)
 	{
 #pragma region print Electricity Network variables
@@ -869,9 +843,6 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 			Xs[n] = new float[nPlt]();
 			for (int i = 0; i < nPlt; i++)
 			{
-				XestS[n][i] = cplex.getValue(Xest[n][i]);
-				XdecS[n][i] = cplex.getValue(Xdec[n][i]);
-				Xs[n][i] = cplex.getValue(X[n][i]);
 				if (XestS[n][i] > 0)
 				{
 					//std::cout << "Xest[" << n << "][" << i << "] = " << XestS[n][i] << endl;
@@ -1214,20 +1185,6 @@ double NGES_Model(bool int_vars_relaxed, bool PrintVars)
 #pragma endregion
 
 	}
+
 	return obj_val;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

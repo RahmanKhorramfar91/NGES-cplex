@@ -21,6 +21,9 @@ void NG_Network_Model(bool PrintVars)
 	vector<enode> Enodes = Params::Enodes;
 	vector<plant> Plants = Params::Plants;
 	vector<eStore> Estorage = Params::Estorage;
+	vector<exist_gSVL> Exist_SVL = Params::Exist_SVL;
+	int nSVL = Exist_SVL.size();
+	vector<SVL> SVLs = Params::SVLs;
 	vector<branch> Branches = Params::Branches;
 	int nEnode = Enodes.size();
 	int nPlt = Plants.size();
@@ -28,7 +31,7 @@ void NG_Network_Model(bool PrintVars)
 	int neSt = Estorage.size();
 	int nPipe = PipeLines.size();
 	vector<int> Tg = Params::Tg;
-	vector<int> Te = Params::Te;
+	//vector<int> Te = Params::Te;
 	vector<int> time_weight = Params::time_weight;
 	float pi = 3.1415926535897;
 	int nGnode = Gnodes.size();
@@ -55,24 +58,50 @@ void NG_Network_Model(bool PrintVars)
 
 
 #pragma region NG network DVs
+
 	// NG vars
+	IloNumVarArray Xstr(env, nSVL, 0, IloInfinity, ILOFLOAT);
+	IloNumVarArray Xvpr(env, nSVL, 0, IloInfinity, ILOFLOAT);
+
+	NumVar2D Sstr(env, nSVL);
+	NumVar2D Svpr(env, nSVL);
+	NumVar2D Sliq(env, nSVL);
 	NumVar2D supply(env, nGnode);
 	NumVar2D curtG(env, nGnode);
 	NumVar2D flowGG(env, nPipe);
 	NumVar3D flowGE(env, nGnode);
+	NumVar3D flowGL(env, nGnode);
+	NumVar3D flowVG(env, nSVL);
 	IloNumVarArray Zg(env, nPipe, 0, IloInfinity, ILOBOOL);
 	for (int i = 0; i < nPipe; i++)
 	{
 		// uni-directional
 		flowGG[i] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
 	}
+	for (int j = 0; j < nSVL; j++)
+	{
+		Sstr[j] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		Svpr[j] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		Sliq[j] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		flowVG[j] = NumVar2D(env, nGnode);
+		for (int k = 0; k < nGnode; k++)
+		{
+			flowVG[j][k] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		}
+	}
+
 	for (int k = 0; k < nGnode; k++)
 	{
 		supply[k] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
 		curtG[k] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
-		//Zg[k] = IloNumVarArray(env, nGnode, 0, IloInfinity, ILOBOOL);
 		DV_size += 2 * Tg.size() + nGnode;
 		flowGE[k] = NumVar2D(env, nEnode);
+		flowGL[k] = NumVar2D(env, nSVL);
+		for (int j = 0; j < nSVL; j++)
+		{
+			flowGL[k][j] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+
+		}
 		for (int n = 0; n < nEnode; n++)
 		{
 			flowGE[k][n] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
@@ -82,13 +111,27 @@ void NG_Network_Model(bool PrintVars)
 #pragma endregion
 
 
+	IloExpr exp0(env);
 
 #pragma region NG network related costs
-	IloExpr exp0(env);
+	IloExpr exp_NG_import_cost(env);
+	IloExpr exp_invG(env);
 	IloExpr exp_pipe(env);
 	IloExpr exp_curt(env);
-	IloExpr exp_store(env);
-
+	IloExpr exp_FixVar(env);
+	for (int k = 0; k < nGnode; k++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			exp_NG_import_cost += supply[k][tau] * 0;
+		}
+	}
+	for (int j = 0; j < nSVL; j++)
+	{
+		float s1 = std::pow(1.0 / (1 + WACC), 25);//check 25 later
+		float capco = WACC / (1 - s1);
+		exp_invG += capco * (SVLs[0].Capex * Xstr[j] + SVLs[1].Capex * Xvpr[j]);
+	}
 	for (int i = 0; i < nPipe; i++)
 	{
 		float s1 = std::pow(1.0 / (1 + WACC), pipe_lifespan);
@@ -104,13 +147,26 @@ void NG_Network_Model(bool PrintVars)
 			exp_curt += time_weight[tau] * G_curt_cost * curtG[k][tau];
 		}
 	}
-	exp0 = exp_pipe + exp_curt + exp_store;
+
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			exp_FixVar += SVLs[0].FOM * Sstr[j][tau] + SVLs[1].FOM * Svpr[j][tau];
+		}
+	}
+
+	exp0 += exp_NG_import_cost + exp_invG + exp_pipe + exp_curt + exp_FixVar;
+	IloNumVar strInv_cost(env, 0, IloInfinity, ILOFLOAT);
 	IloNumVar pipe_cost(env, 0, IloInfinity, ILOFLOAT);
 	IloNumVar gSshedd_cost(env, 0, IloInfinity, ILOFLOAT);
-	IloNumVar gStore_cost(env, 0, IloInfinity, ILOFLOAT);
+	IloNumVar gFixVar_cost(env, 0, IloInfinity, ILOFLOAT);
+	IloNumVar NG_import_cost(env, 0, IloInfinity, ILOFLOAT);
+	Model.add(strInv_cost == exp_invG);
 	Model.add(pipe_cost == exp_pipe);
 	Model.add(gSshedd_cost == exp_curt);
-	Model.add(gStore_cost == exp_store);
+	Model.add(gFixVar_cost == exp_FixVar);
+	Model.add(NG_import_cost == exp_NG_import_cost);
 #pragma endregion
 
 	Model.add(IloMinimize(env, exp0));
@@ -120,7 +176,6 @@ void NG_Network_Model(bool PrintVars)
 
 #pragma region NG Network Constraint
 	// C1, C2: flow limit for NG
-	float ave_cap = 448;
 	for (int i = 0; i < nPipe; i++)
 	{
 		int is_exist = PipeLines[i].is_exist;
@@ -142,18 +197,20 @@ void NG_Network_Model(bool PrintVars)
 	{
 		for (int tau = 0; tau < Tg.size(); tau++)
 		{
-			IloExpr exp_gg_flow(env);
+			IloExpr exp_gg_exp(env);
+			IloExpr exp_gg_imp(env);
 			IloExpr exp_ge_flow(env);
 			IloExpr exp_store(env);
-			for (int kp : Gnodes[k].adjG)
-			{
-				int key1 = k * 200 + kp;
-				// check if this key exist, if not, the other order exisit
-				if (Le.count(key1) == 0) { key1 = k * 200 + kp; }
-				for (int l2 : Lg[key1]) { exp_gg_flow += flowGG[l2][tau]; }
-			}
+			for (int l :Gnodes[k].Lexp){ exp_gg_exp += flowGG[l][tau]; }
+			for (int l : Gnodes[k].Limp) { exp_gg_imp += flowGG[l][tau]; }
+				
+			
 			for (int n : Gnodes[k].adjE) { exp_ge_flow += flowGE[k][n][tau]; }
-			Model.add(supply[k][tau] + exp_gg_flow - exp_ge_flow + curtG[k][tau] == Gnodes[k].demG[Tg[tau]]);
+			for (int j : Gnodes[k].adjS) { exp_store += flowVG[j][k][tau] - flowGL[k][j][tau]; }
+
+			//Model.add(exp_ge_flow == 0);
+			//Model.add(supply[k][tau] + exp_gg_flow - exp_store + curtG[k][tau] == Gnodes[k].demG[Tg[tau]] + Gnodes[k].out_dem);
+			Model.add(supply[k][tau]- exp_gg_exp+ exp_gg_imp - exp_ge_flow + exp_store + curtG[k][tau] == Gnodes[k].demG[Tg[tau]]);
 		}
 	}
 
@@ -166,10 +223,104 @@ void NG_Network_Model(bool PrintVars)
 			Model.add(supply[k][tau] >= Gnodes[k].injL);
 			Model.add(supply[k][tau] <= Gnodes[k].injU);
 
-			Model.add(curtG[k][tau] <= Gnodes[k].demG[tau]);
+			Model.add(curtG[k][tau] <= Gnodes[k].demG[Tg[tau]]);
 		}
 	}
 
+	//C5: storage balance
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			if (tau == 0)
+			{
+				//Model.add(Sstr[j][tau] == Exist_SVL[j].store_cap*0.5);
+				Model.add(Sstr[j][tau] == Exist_SVL[j].store_cap * 0 + Sliq[j][tau] - Svpr[j][tau] / SVLs[1].eff_disCh);
+				//Model.add(Sstr[j][tau] == Sliq[j][tau] - Svpr[j][tau] / SVLs[1].eff_disCh);
+				continue;
+			}
+			Model.add(Sstr[j][tau] == (1-SVLs[0].BOG) * Sstr[j][tau - 1] + Sliq[j][tau] - Svpr[j][tau] / SVLs[1].eff_disCh);
+		}
+	}
+
+	//C6: calculate Sliq
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			IloExpr exp(env);
+			// get the ng nodes adjacent to SVL j
+			vector<int> NG_adj;
+			for (int k = 0; k < nGnode; k++)
+			{
+				for (int j2 : Gnodes[k].adjS)
+				{
+					if (j2 == j)
+					{
+						NG_adj.push_back(k);
+					}
+				}
+			}
+			for (int k : NG_adj)
+			{
+				exp += flowGL[k][j][tau];
+			}
+			Model.add(Sliq[j][tau] == exp);
+		}
+	}
+
+	//C6: Sliq limit
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			Model.add(Sliq[j][tau] <= Exist_SVL[j].liq_cap);
+		}
+	}
+
+	//C7: calculate Svpr
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			IloExpr exp(env);
+			// get the ng nodes adjacent to SVL j
+			vector<int> NG_adj;
+			for (int k = 0; k < nGnode; k++)
+			{
+				for (int j2 : Gnodes[k].adjS)
+				{
+					if (j2 == j)
+					{
+						NG_adj.push_back(k);
+					}
+				}
+			}
+			for (int k : NG_adj)
+			{
+				exp += flowVG[j][k][tau];
+			}
+			Model.add(Svpr[j][tau] == exp);
+		}
+	}
+
+	//C8: Svpr limit
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			Model.add(Svpr[j][tau] <= Exist_SVL[j].vap_cap + Xvpr[j]);
+		}
+	}
+
+	//C8: Sstr limit
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			Model.add(Sstr[j][tau] <= Exist_SVL[j].store_cap + Xstr[j]);
+		}
+	}
 
 #pragma endregion
 
@@ -212,8 +363,10 @@ void NG_Network_Model(bool PrintVars)
 		fid2 << "Elapsed time: " << Elapsed << endl;
 		fid2 << "\t NG Network Obj Value:" << obj_val << endl;
 		fid2 << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
+		fid2 << "\t NG import Cost: " << cplex.getValue(NG_import_cost) << endl;
 		fid2 << "\t Pipeline Establishment Cost: " << cplex.getValue(pipe_cost) << endl;
-		fid2 << "\t NG Storage Cost: " << cplex.getValue(gStore_cost) << endl;
+		fid2 << "\t Storatge Investment Cost: " << cplex.getValue(strInv_cost) << endl;
+		fid2 << "\t NG Storage Cost: " << cplex.getValue(gFixVar_cost) << endl;
 		fid2 << "\t NG Load Shedding Cost: " << cplex.getValue(gSshedd_cost) << endl;
 		//float** supS = new float* [nGnode];
 		for (int k = 0; k < nGnode; k++)
@@ -227,7 +380,7 @@ void NG_Network_Model(bool PrintVars)
 				}
 			}
 		}
-
+		fid2 << endl;
 		for (int k = 0; k < nGnode; k++)
 		{
 			for (int tau = 0; tau < Tg.size(); tau++)
@@ -239,6 +392,7 @@ void NG_Network_Model(bool PrintVars)
 				}
 			}
 		}
+		fid2 << endl;
 		for (int i = 0; i < nPipe; i++)
 		{
 			float s1 = cplex.getValue(Zg[i]);
@@ -247,7 +401,7 @@ void NG_Network_Model(bool PrintVars)
 				fid2 << "Zg[" << PipeLines[i].from_node << "][" << PipeLines[i].to_node << "] = " << s1 << endl;
 			}
 		}
-
+		fid2 << endl;
 		for (int i = 0; i < nPipe; i++)
 		{
 			for (int tau = 0; tau < Tg.size(); tau++)
@@ -275,6 +429,93 @@ void NG_Network_Model(bool PrintVars)
 			}
 		}
 
+		fid2 << endl;
+		for (int k = 0; k < nGnode; k++)
+		{
+			for (int kp : Gnodes[k].adjS)
+			{
+				for (int tau = 0; tau < Tg.size(); tau++)
+				{
+					float s1 = cplex.getValue(flowGL[k][kp][tau]);
+					if (std::abs(s1) > 0.1)
+					{
+						fid2 << "flowGL[" << k << "][" << kp << "][" << tau << "] = " << s1 << endl;
+					}
+				}
+			}
+		}
+		fid2 << endl;
+		for (int k = 0; k < nGnode; k++)
+		{
+			for (int kp : Gnodes[k].adjS)
+			{
+				for (int tau = 0; tau < Tg.size(); tau++)
+				{
+					float s1 = cplex.getValue(flowVG[kp][k][tau]);
+					if (std::abs(s1) > 0.1)
+					{
+						fid2 << "flowVG[" << kp << "][" << k << "][" << tau << "] = " << s1 << endl;
+					}
+				}
+			}
+		}
+
+		fid2 << endl;
+		for (int j = 0; j < nSVL; j++)
+		{
+			float s1 = cplex.getValue(Xstr[j]);
+			if (s1 > 0.001)
+			{
+				fid2 << "Xstr[" << j << "]= " << s1 << endl;
+			}
+		}
+		fid2 << endl;
+		for (int j = 0; j < nSVL; j++)
+		{
+			float s1 = cplex.getValue(Xvpr[j]);
+			if (s1 > 0.001)
+			{
+				fid2 << "Xvpr[" << j << "]= " << s1 << endl;
+			}
+		}
+
+
+		fid2 << endl;
+		for (int j = 0; j < nSVL; j++)
+		{
+			for (int t = 0; t < Tg.size(); t++)
+			{
+				float s1 = cplex.getValue(Sstr[j][t]);
+				if (s1 > 0.001)
+				{
+					fid2 << "Sstr[" << j << "][" << t << "]= " << s1 << endl;
+				}
+			}
+		}
+		fid2 << endl;
+		for (int j = 0; j < nSVL; j++)
+		{
+			for (int t = 0; t < Tg.size(); t++)
+			{
+				float s1 = cplex.getValue(Svpr[j][t]);
+				if (s1 > 0.001)
+				{
+					fid2 << "Svpr[" << j << "][" << t << "]= " << s1 << endl;
+				}
+			}
+		}
+		fid2 << endl;
+		for (int j = 0; j < nSVL; j++)
+		{
+			for (int t = 0; t < Tg.size(); t++)
+			{
+				float s1 = cplex.getValue(Sliq[j][t]);
+				if (s1 > 0.001)
+				{
+					fid2 << "Sliq[" << j << "][" << t << "]= " << s1 << endl;
+				}
+			}
+		}
 		fid2.close();
 #pragma endregion
 	}

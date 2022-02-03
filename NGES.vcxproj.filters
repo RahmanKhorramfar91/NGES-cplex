@@ -36,12 +36,21 @@
     <ClCompile Include="NG Model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Funcs.cpp">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MidModel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Models.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Funcs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

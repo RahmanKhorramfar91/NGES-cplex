@@ -1,6 +1,7 @@
 // NGES.cpp : This file contains the 'main' function. Program execution begins and ends there.
 #include "ProblemData.h"
 #include"Models.h"
+#include"Funcs.h"
 
 //HOW TO SET UP CPLEX FOR C++  :
 //https://bzdww.com/article/134619/
@@ -41,12 +42,17 @@ int main()
 	// NOTE: prints for t<10 for prod[n][t][i]
 	auto start = chrono::high_resolution_clock::now();
 #pragma region Problem Setting
-	const int nRepDays = 2;
-	int PP = 24 * nRepDays;  // hours of planning for electricity network
-	vector<int> Tg;  // days of planning
-	vector<int> RepDays{ 243, 321 };
-	vector<int> RepDaysCount{ 121, 244 };
 
+	vector<int> Tg;  // days of planning
+	//vector<int> RepDays{ 8,35,125,168,182,209,282 };
+	//vector<int> RepDaysCount{ 53,71,87,35,38,23,58 };
+
+	vector<int> RepDays;
+	vector<int> RepDaysCount;
+	Read_rep_days("RepDays=52.txt", RepDays, RepDaysCount);
+
+	const int nRepDays = RepDays.size();
+	int PP = 24 * nRepDays;  // hours of planning for electricity network
 	vector<int> Te;
 	vector<int> time_weight;
 	for (int i = 0; i < nRepDays; i++)
@@ -65,11 +71,11 @@ int main()
 
 
 	bool int_vars_relaxed = false;
-	 
+
 	// Uppper bound of Emission, 2018 emission for New England was 147 million metric tons(mmt)
 	// emission for 2 hours (out of 48 rep. hours) is 1.9e6, yearly 23 (mmt) in this model.
 	float Emis_lim = 4e6;
-	float RPS = 0.2;   // Renewable Portfolio Share
+	float RPS = 0.3;   // Renewable Portfolio Share
 	float WACC = 0.065;// Weighted average cost of capital to calculate CAPEX coefficient from ATB2021
 	int trans_unit_cost = 1800; // dollars per mile of trans. line
 #pragma endregion
@@ -80,8 +86,8 @@ int main()
 	float NG_price = 15;//per MMBTu, approximately: https://www.eia.gov/dnav/ng/hist/n3010us3M.htm
 	float dfo_pric = (1e6 / 1.37e5) * 3.5;//https://www.eia.gov/energyexplained/units-and-calculators/ and https://www.eia.gov/petroleum/gasdiesel/
 	float coal_price = 92 / 19.26; //https://www.eia.gov/coal/ and https://www.eia.gov/tools/faqs/faq.php?id=72&t=2#:~:text=In%202020%2C%20the%20annual%20average,million%20Btu%20per%20short%20ton.
-	float E_curt_cost = 2e5; // $ per MW;
-	float G_curt_cost = 1.5e6;
+	float E_curt_cost = 1e5; // $ per MW;
+	float G_curt_cost = 1e4; // & per MMBtu
 	float pipe_per_mile = 7e+5;//https://www.gem.wiki/Oil_and_Gas_Pipeline_Construction_Costs
 	int pipe_lifespan = 50; // years, https://www.popsci.com/story/environment/oil-gas-pipelines-property/#:~:text=There%20are%20some%203%20million,%2C%20power%20plants%2C%20and%20homes.&text=Those%20pipelines%20have%20an%20average%20lifespan%20of%2050%20years.
 	float Ng_demand_growth_by_2050 = 0.5; // 50% https://www.eia.gov/todayinenergy/detail.php?id=42342
@@ -91,10 +97,15 @@ int main()
 	// Read Natural Gas Data
 	std::map<int, vector<int>> Lg; //key: from_ng_node*200+to_ng_node, 200 is up_lim for number of buses
 	vector<gnode> Gnodes = gnode::read_gnode_data("ng_nodes.txt");
-	gnode::read_adjG_data("ng_adjG.txt", Gnodes);
+	gnode::read_Lexp_data("ng_L_exp.txt", Gnodes);
+	gnode::read_Limp_data("ng_L_imp.txt", Gnodes);
+
 	gnode::read_adjE_data("ng_adjE.txt", Gnodes);
 	gnode::read_ng_demand_data("ng_daily_dem.txt", Gnodes);
-	vector<pipe> PipeLines = pipe::read_pipe_data("g2g_br.txt",Lg);
+
+	vector<exist_gSVL> Exist_SVL = exist_gSVL::read_exist_SVL_data("ng_exist_SVL.txt");
+	vector<SVL> SVLs = SVL::read_SVL_data("SVL_data.txt");
+	vector<pipe> PipeLines = pipe::read_pipe_data("g2g_br.txt", Lg);
 	int nGnode = Gnodes.size();
 
 	// Read Electricity Data
@@ -121,6 +132,8 @@ int main()
 	Params::Branches = Branches;
 	Params::Enodes = Enodes;
 	Params::Gnodes = Gnodes;
+	Params::Exist_SVL = Exist_SVL;
+	Params::SVLs = SVLs;
 	Params::PipeLines = PipeLines;
 	Params::Plants = Plants;
 	Params::Estorage = Estorage;
@@ -145,18 +158,25 @@ int main()
 #pragma endregion
 
 	int** Xs = new int* [Params::Enodes.size()];
+	double*** Ps = new double** [Params::Enodes.size()];
 	int** XestS = new int* [Params::Enodes.size()];
 	int** XdecS = new int* [Params::Enodes.size()];
 
-	double LB = 0; double UB = 0;
+	double LB = 0; double opt = 0; double UB1 = 0; double UB2 = 0;
+	double MidSol = 0;
 	//Electricy_Network_Model(false, true);
 	//NG_Network_Model(true);
-	NGES_Model(false, true);
+	//opt = NGES_Model(false, true);
 	//FullModel(int_vars_relaxed, false);
-	//LB = LB_no_flow_lim(true, Xs, XestS, XdecS);// by relaxing limit constraints on transmission flow
-	//UB = UB_no_trans_consts(false, Xs, XestS, XdecS);
+	LB = LB_no_flow_lim_no_ramp(true, true, Xs, XestS, XdecS, Ps);// by relaxing limit constraints on transmission flow
+
+	//UB1 = UB_prods_fixed(false, Ps);
+	MidSol = inv_vars_fixed_flow_equation_relaxed(false, Xs, XestS, XdecS, Ps);
+	UB1 = UB_X_prod_vars_given(false,  Xs, XestS,XdecS,  Ps);
+	UB2 = UB_X_var_given(true, Xs, XestS, XdecS);
 	//UB = UB_feasSol_X_Xest_Xdec_given(Xs, XestS, XdecS);
-	//UB = UB_feasSol_X_var_given(Xs);
+	double gap1 = 100 * (UB2 - LB) / LB;
+	cout << "Gap ((UB-LB)/LB) (%)" << gap1 << endl;
 	// system("pause");
 	return 0;
 }
