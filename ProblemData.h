@@ -146,8 +146,6 @@ struct eStore
 
 };
 
-
-
 struct gnode
 {
 	int num;
@@ -211,6 +209,7 @@ struct exist_gSVL
 	}
 	static vector<exist_gSVL> read_exist_SVL_data(string FL);
 };
+
 struct SVL
 {
 	// SVL 0 : Storage facility
@@ -221,7 +220,7 @@ struct SVL
 	float eff_ch;  // charge efficiency
 	float eff_disCh; // discharge efficiency
 	float BOG = 6e-6; // Boil-off gas, Dharik: The boiled off gas is sent to the pipeline network. You can convert this to an hourly rate and model this as the minimum discharge of the tank in each hour
-	SVL(int cp, int fm, float ch, float dis )
+	SVL(int cp, int fm, float ch, float dis)
 	{
 		this->Capex = cp;
 		this->FOM = fm;
@@ -269,3 +268,8 @@ struct Params
 	static vector<branch> Branches;
 	static vector<eStore> Estorage;
 };
+
+
+
+
+

@@ -36,10 +36,13 @@
     <ClCompile Include="NG Model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Funcs.cpp">
-      <Filter>Header Files</Filter>
-    </ClCompile>
     <ClCompile Include="MidModel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Funcs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Create_Elec_Model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
