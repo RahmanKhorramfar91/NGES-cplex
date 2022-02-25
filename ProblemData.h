@@ -16,7 +16,7 @@
 #include<map>  // To define dictionary data types
 
 using namespace std;
-
+void Read_rep_days(string name, vector<int>& Rep, vector<int>& RepCount);
 struct enode
 {
 	int num;
@@ -135,12 +135,14 @@ struct eStore
 	int power_cost; // &/MW
 	float eff_ch;  // charge efficiency
 	float eff_disCh; // discharge efficiency
-	eStore(int en, int pow, float ch, float dis)
+	float FOM; // fixed operating and maintanence cost
+	eStore(int en, int pow, float ch, float dis,float fom)
 	{
 		this->energy_cost = en;
 		this->power_cost = pow;
 		this->eff_ch = ch;
 		this->eff_disCh = dis;
+		this->FOM = fom;
 	}
 	static vector<eStore> read_elec_storage_data(string FileName);
 
@@ -234,6 +236,7 @@ struct SVL
 struct Params
 {
 	// General
+	static int Num_Rep_Days;
 	static float WACC;
 	static int trans_unit_cost;
 	static int trans_line_lifespan;
@@ -243,10 +246,12 @@ struct Params
 
 	static float dfo_pric;
 	static float coal_price;
+	static float nuclear_price;
 	static float E_curt_cost;
 	static float G_curt_cost;
 	static float pipe_per_mile;
 	static int pipe_lifespan;
+	static int battery_lifetime;
 	static vector<int> RepDaysCount;
 
 
@@ -270,6 +275,6 @@ struct Params
 };
 
 
-
+void Read_Data();
 
 

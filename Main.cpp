@@ -1,7 +1,6 @@
 // NGES.cpp : This file contains the 'main' function. Program execution begins and ends there.
 #include "ProblemData.h"
-#include"Models.h"
-#include"Funcs.h"
+#include"Models_Funcs.h"
 
 //HOW TO SET UP CPLEX FOR C++  :
 //https://bzdww.com/article/134619/
@@ -42,30 +41,10 @@ int main()
 	// NOTE: prints for t<10 for prod[n][t][i]
 	auto start = chrono::high_resolution_clock::now();
 #pragma region Problem Setting
-
-	vector<int> Tg;  // days of planning
-	vector<int> RepDays;
-	vector<int> RepDaysCount;
-	Read_rep_days("RepDays=2.txt", RepDays, RepDaysCount);
-
-	const int nRepDays = RepDays.size();
-	int PP = 24 * nRepDays;  // hours of planning for electricity network
-	vector<int> Te;
-	vector<int> time_weight;
-	for (int i = 0; i < nRepDays; i++)
-	{
-		for (int j = 0; j < 24; j++)
-		{
-			Te.push_back(24 * RepDays[i] + j);
-			time_weight.push_back(RepDaysCount[i]);
-			if (Te.size() >= PP) { break; }
-		}
-	}
-	for (int i = 0; i < nRepDays; i++)
-	{
-		Tg.push_back(RepDays[i]);
-	}
+	int Num_rep_days = 2;
+	Params::Num_Rep_Days = Num_rep_days;
 	bool int_vars_relaxed = false;
+	bool print_vars = true;
 #pragma endregion
 
 #pragma region  Other parameters
@@ -77,10 +56,11 @@ int main()
 	int trans_unit_cost = 3500; // dollars per MW per mile of trans. line (ReEDS 2019)
 	int trans_line_lifespan = 40; // years
 	int decom_lifetime = 2035 - 2016;
-	int battery_lifetime = 30; // ATB 2021
+	int battery_lifetime = 15; // 
 	float NG_price = 4;//per MMBTu, approximated from NG price in eia.gov
 	float dfo_pric = (1e6 / 1.37e5) * 3.5;//https://www.eia.gov/energyexplained/units-and-calculators/ and https://www.eia.gov/petroleum/gasdiesel/
 	float coal_price = 92 / 19.26; //https://www.eia.gov/coal/ and https://www.eia.gov/tools/faqs/faq.php?id=72&t=2#:~:text=In%202020%2C%20the%20annual%20average,million%20Btu%20per%20short%20ton.
+	float Nuclear_price = 0.69; // per MMBtu
 	float E_curt_cost = 5e4; // $ per MWh;
 	float G_curt_cost = 1e5; // & per MMBtu
 	float pipe_per_mile = 7e+5;//https://www.gem.wiki/Oil_and_Gas_Pipeline_Construction_Costs
@@ -90,64 +70,22 @@ int main()
 
 #pragma region Read Data
 	// Read Natural Gas Data
-	std::map<int, vector<int>> Lg; //key: from_ng_node*200+to_ng_node, 200 is up_lim for number of buses
-	vector<gnode> Gnodes = gnode::read_gnode_data("ng_nodes.txt");
-	gnode::read_Lexp_data("ng_L_exp.txt", Gnodes);
-	gnode::read_Limp_data("ng_L_imp.txt", Gnodes);
-
-	gnode::read_adjE_data("ng_adjE.txt", Gnodes);
-	gnode::read_ng_demand_data("ng_daily_dem.txt", Gnodes);
-
-	vector<exist_gSVL> Exist_SVL = exist_gSVL::read_exist_SVL_data("ng_exist_SVL.txt");
-	vector<SVL> SVLs = SVL::read_SVL_data("SVL_data.txt");
-	vector<pipe> PipeLines = pipe::read_pipe_data("g2g_br.txt", Lg);
-	int nGnode = Gnodes.size();
-
-	// Read Electricity Data
-	// better to use std::unordered_map which is more efficient and faster
-	std::map<int, vector<int>> Le; //key: from_bus*200+to_bus, 200 is up_lim for number of buses
-	vector<eStore> Estorage = eStore::read_elec_storage_data("storage_elec.txt");
-	vector<enode> Enodes = enode::read_bus_data("bus_num.txt");
-	enode::read_adj_data("bus_adj_Nodes.txt", Enodes);
-	enode::read_exist_plt_data("existing_plants.txt", Enodes);
-	enode::read_demand_data("elec_dem_per_zone_per_hour.txt", Enodes);
-	int nEnode = Enodes.size();
-
-	vector<plant> Plants = plant::read_new_plant_data("plant_data.txt");
-	plant::read_VRE_profile("profile_hydro_hourly.txt",
-		"profile_wind_hourly.txt", "profile_solar_hourly.txt", Plants);
-
-	vector<branch> Branches = branch::read_branch_data(nEnode, "b2b_br_per_node.txt", "b2b_br.txt", "b2b_br_dist.txt",
-		"b2b_br_is_existing.txt", "b2b_br_maxFlow.txt", "b2b_br_Suscept.txt", Le);
-
-
+	Read_Data();
 #pragma endregion
 
 #pragma region Populate Params
-	Params::Branches = Branches;
-	Params::Enodes = Enodes;
-	Params::Gnodes = Gnodes;
-	Params::Exist_SVL = Exist_SVL;
-	Params::SVLs = SVLs;
-	Params::PipeLines = PipeLines;
-	Params::Plants = Plants;
-	Params::Estorage = Estorage;
-	Params::Tg = Tg;
-	Params::Te = Te;
-	Params::time_weight = time_weight;
-	Params::RepDaysCount = RepDaysCount;
 	Params::WACC = WACC;
 	Params::trans_unit_cost = trans_unit_cost;
 	Params::trans_line_lifespan = trans_line_lifespan;
 	Params::NG_price = NG_price;
 	Params::dfo_pric = dfo_pric;
 	Params::coal_price = coal_price;
+	Params::nuclear_price = Nuclear_price;
 	Params::E_curt_cost = E_curt_cost;
 	Params::G_curt_cost = G_curt_cost;
 	Params::pipe_per_mile = pipe_per_mile;
 	Params::pipe_lifespan = pipe_lifespan;
-	Params::Le = Le;
-	Params::Lg = Lg;
+	Params::battery_lifetime = battery_lifetime;
 	Params::Emis_lim = Emis_lim;
 	Params::RPS = RPS;
 #pragma endregion
@@ -159,7 +97,7 @@ int main()
 
 	double LB = 0; double opt = 0; double UB1 = 0; double UB2 = 0;
 	double MidSol = 0;
-	Electricy_Network_Model(false, true);
+	Electricy_Network_Model(int_vars_relaxed, print_vars);
 	//NG_Network_Model(true);
 	//opt = NGES_Model(false, true);
 	//FullModel(int_vars_relaxed, false);

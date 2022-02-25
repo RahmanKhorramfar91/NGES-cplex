@@ -17,16 +17,32 @@ int Params::trans_line_lifespan;
 float Params::NG_price;
 float Params::dfo_pric;
 float Params::coal_price;
+float Params::nuclear_price;
 float Params::E_curt_cost;
 float Params::G_curt_cost;
 float Params::pipe_per_mile;
 float Params::Emis_lim;
 float Params::RPS;
 int Params::pipe_lifespan;
+int Params::battery_lifetime;
+int Params::Num_Rep_Days;
 map<int, vector<int>> Params::Le;
 map<int, vector<int>> Params::Lg;
 
 
+void Read_rep_days(string name, vector<int>& Rep, vector<int>& RepCount)
+{
+	ifstream fid(name);
+	string line;
+	while (getline(fid, line))
+	{
+		float re, rc;
+		std::istringstream iss(line);
+		iss >> re >> rc;
+		Rep.push_back(re);
+		RepCount.push_back(rc);
+	}
+}
 
 vector<enode> enode::read_bus_data(string name)
 {
@@ -144,13 +160,13 @@ vector<plant> plant::read_new_plant_data(string name)
 		//	string t, int n, int ise, int cap, int f, int v, float emi, float hr, int lt, int dec,
 			//	float pmax, float ru, float rd, int emic
 		std::istringstream iss(line);
-		float n, ise, cap, f, v, emi, hr, lt, dec, pmax, pmin, ru, rd, emic,numM;
+		float n, ise, cap, f, v, emi, hr, lt, dec, pmax, pmin, ru, rd, emic, numM;
 		//float  n, capex,pmax, pmin,ru,rd, fix_cost, var_cost, decom_cost, emis_cost, lifespan;
 		string type;
 		float h, emis_rate;
-		iss >> type >> n >> ise >> cap >> f >> v >> emi >> hr >> lt >> dec >> pmax >> pmin >> ru >> rd >> emic>>numM;
+		iss >> type >> n >> ise >> cap >> f >> v >> emi >> hr >> lt >> dec >> pmax >> pmin >> ru >> rd >> emic >> numM;
 		//iss >> type >> n >> capex >>pmax>>pmin>>ru>>rd>> fix_cost >> var_cost >> h >> emis_rate >> decom_cost >> emis_cost >> lifespan;
-		plant np(type, (int)n, (int)ise, (int)cap, (int)f, (int)v, emi, hr, (int)lt, (int)dec, pmax, pmin, ru, rd, (int)emic,(int)numM);
+		plant np(type, (int)n, (int)ise, (int)cap, (int)f, (int)v, emi, hr, (int)lt, (int)dec, pmax, pmin, ru, rd, (int)emic, (int)numM);
 		NewPlants.push_back(np);
 	}
 	fid.close();
@@ -165,9 +181,9 @@ vector<eStore> eStore::read_elec_storage_data(string name)
 	while (getline(fid, line))
 	{
 		std::istringstream iss(line);
-		float en, pow, ch, dis;
-		iss >> en >> pow >> ch >> dis;
-		eStore str((int)en, (int)pow, ch, dis);
+		float en, pow, ch, dis,fom;
+		iss >> en >> pow >> ch >> dis>>fom;
+		eStore str((int)en, (int)pow, ch, dis,fom);
 		Estorage.push_back(str);
 	}
 	fid.close();
@@ -481,4 +497,81 @@ void gnode::read_ng_demand_data(string name, vector<gnode>& Gnodes)
 		}
 	}
 
+}
+
+
+void Read_Data()
+{
+	string Rep_name = "RepDays=" + std::to_string(Params::Num_Rep_Days) + ".txt";
+	vector<int> Tg;  // days of planning
+	vector<int> RepDays;
+	vector<int> RepDaysCount;
+	Read_rep_days(Rep_name, RepDays, RepDaysCount);
+
+	const int nRepDays = RepDays.size();
+	int PP = 24 * nRepDays;  // hours of planning for electricity network
+	vector<int> Te;
+	vector<int> time_weight;
+	for (int i = 0; i < nRepDays; i++)
+	{
+		for (int j = 0; j < 24; j++)
+		{
+			Te.push_back(24 * RepDays[i] + j);
+			time_weight.push_back(RepDaysCount[i]);
+			if (Te.size() >= PP) { break; }
+		}
+	}
+	for (int i = 0; i < nRepDays; i++)
+	{
+		Tg.push_back(RepDays[i]);
+	}
+	std::map<int, vector<int>> Lg; //key: from_ng_node*200+to_ng_node, 200 is up_lim for number of buses
+	vector<gnode> Gnodes = gnode::read_gnode_data("ng_nodes.txt");
+	gnode::read_Lexp_data("ng_L_exp.txt", Gnodes);
+	gnode::read_Limp_data("ng_L_imp.txt", Gnodes);
+
+	gnode::read_adjE_data("ng_adjE.txt", Gnodes);
+	gnode::read_ng_demand_data("ng_daily_dem.txt", Gnodes);
+
+
+
+	vector<exist_gSVL> Exist_SVL = exist_gSVL::read_exist_SVL_data("ng_exist_SVL.txt");
+	vector<SVL> SVLs = SVL::read_SVL_data("SVL_data.txt");
+	vector<pipe> PipeLines = pipe::read_pipe_data("g2g_br.txt", Lg);
+	int nGnode = Gnodes.size();
+
+	// Read Electricity Data
+	// better to use std::unordered_map which is more efficient and faster
+	std::map<int, vector<int>> Le; //key: from_bus*200+to_bus, 200 is up_lim for number of buses
+	vector<eStore> Estorage = eStore::read_elec_storage_data("storage_elec.txt");
+	vector<enode> Enodes = enode::read_bus_data("bus_num.txt");
+	enode::read_adj_data("bus_adj_Nodes.txt", Enodes);
+	enode::read_exist_plt_data("existing_plants.txt", Enodes);
+	enode::read_demand_data("elec_dem_per_zone_per_hour.txt", Enodes);
+	int nEnode = Enodes.size();
+
+	vector<plant> Plants = plant::read_new_plant_data("plant_data.txt");
+	plant::read_VRE_profile("profile_hydro_hourly.txt",
+		"profile_wind_hourly.txt", "profile_solar_hourly.txt", Plants);
+
+	vector<branch> Branches = branch::read_branch_data(nEnode, "b2b_br_per_node.txt", "b2b_br.txt", "b2b_br_dist.txt",
+		"b2b_br_is_existing.txt", "b2b_br_maxFlow.txt", "b2b_br_Suscept.txt", Le);
+
+
+
+
+	Params::Tg = Tg;
+	Params::Te = Te;
+	Params::time_weight = time_weight;
+	Params::RepDaysCount = RepDaysCount;
+	Params::Branches = Branches;
+	Params::Enodes = Enodes;
+	Params::Gnodes = Gnodes;
+	Params::Exist_SVL = Exist_SVL;
+	Params::SVLs = SVLs;
+	Params::PipeLines = PipeLines;
+	Params::Plants = Plants;
+	Params::Estorage = Estorage;
+	Params::Le = Le;
+	Params::Lg = Lg;
 }

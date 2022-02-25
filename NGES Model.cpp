@@ -1,4 +1,4 @@
-#include"Models.h"
+#include"Models_Funcs.h"
 
 
 double NGES_Model(bool int_vars_relaxed, bool PrintVars)

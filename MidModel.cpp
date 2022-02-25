@@ -1,4 +1,4 @@
-#include"Models.h"
+#include"Models_Funcs.h"
 
 double inv_vars_fixed_flow_equation_relaxed(bool PrintVars, int** Xs, int** XestS, int** XdecS, double*** Ps)
 {

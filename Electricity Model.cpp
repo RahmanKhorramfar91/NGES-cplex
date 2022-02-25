@@ -1,4 +1,4 @@
-#include"Models.h"
+#include"Models_Funcs.h"
 #include "ilcplex/ilocplex.h";
 typedef IloArray<IloNumVarArray> NumVar2D; // to define 2-D decision variables
 typedef IloArray<NumVar2D> NumVar3D;  // to define 3-D decision variables

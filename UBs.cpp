@@ -1,4 +1,4 @@
-#include"Models.h"
+#include"Models_Funcs.h"
 
 double UB_no_trans_consts(bool PrintVars, int** Xs, int** XestS, int** XdecS)
 {

@@ -1,4 +1,4 @@
-Elapsed time: 6
+Elapsed time: 8
 	 Electricity Network Obj Value:4.21972e+09
 	 Gap: 0.00565109 Status:Optimal
 
