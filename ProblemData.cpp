@@ -349,10 +349,6 @@ vector<SVL> SVL::read_SVL_data(string name)
 	}
 	fid.close();
 	return SVLs;
-
-
-
-
 }
 void gnode::read_Lexp_data(string FileName, vector<gnode>& Gnodes)
 {

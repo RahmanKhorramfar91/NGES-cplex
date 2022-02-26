@@ -51,7 +51,7 @@ int main()
 	// Uppper bound of Emission, 2018 emission for New England was 147 million metric tons(mmt)
 // emission for 2 hours (out of 48 rep. hours) is 1.9e6, yearly 23 (mmt) in this model.
 	float Emis_lim = 4e6;
-	float RPS = 0.3;   // Renewable Portfolio Share
+	float RPS = 0.2;   // Renewable Portfolio Share
 	float WACC = 0.05;// Weighted average cost of capital to calculate CAPEX coefficient from ATB2021
 	int trans_unit_cost = 3500; // dollars per MW per mile of trans. line (ReEDS 2019)
 	int trans_line_lifespan = 40; // years

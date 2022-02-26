@@ -96,7 +96,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 		fid << "\n \t Fixed Cost: " << cplex.getValue(EV::fixed_cost);
 		fid << "\n \t Variable Cost: " << cplex.getValue(EV::var_cost);
 		//fid << "\n \t Emission Cost: " << cplex.getValue(emis_cost);
-		fid << "\n \t Fuel Cost: " << cplex.getValue(EV::fuel_cost);
+		fid << "\n \t (dfo, coal, and nuclear) Fuel Cost: " << cplex.getValue(EV::thermal_fuel_cost);
 		fid << "\n \t Load Shedding Cost: " << cplex.getValue(EV::shedding_cost);
 		fid << "\n \t Storage Cost: " << cplex.getValue(EV::elec_storage_cost) << "\n\n";
 
@@ -112,7 +112,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 			{
 				XestS[n][i] = cplex.getValue(EV::Xest[n][i]);
 				XdecS[n][i] = cplex.getValue(EV::Xdec[n][i]);
-				Xs[n][i] = cplex.getValue(EV::X[n][i]);
+				Xs[n][i] = cplex.getValue(EV::Xop[n][i]);
 				if (XestS[n][i] > 0)
 				{
 					//std::cout << "Xest[" << n << "][" << i << "] = " << XestS[n][i] << endl;
@@ -126,7 +126,7 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 				if (Xs[n][i] > 0)
 				{
 					//cout << "X[" << n << "][" << i << "] = " << Xs[n][i] << endl;
-					fid << "X[" << n << "][" << i << "] = " << Xs[n][i] << endl;
+					fid << "Xop[" << n << "][" << i << "] = " << Xs[n][i] << endl;
 				}
 			}
 		}
@@ -227,6 +227,19 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 			}
 		}
 
+		float** YeStr = new float* [nEnode];
+		for (int n = 0; n < nEnode; n++)
+		{
+			YeStr[n] = new float[neSt]();
+			for (int r = 0; r < neSt; r++)
+			{
+				YeStr[n][r] = cplex.getValue(EV::YeStr[n][r]);
+				if (YeStr[n][r] > 10e-3)
+				{
+					fid << "Ye_Str[" << n << "][" << r << "] = " << YeStr[n][r] << endl;
+				}
+			}
+		}
 
 		float*** eSchS = new float** [nEnode];
 		for (int n = 0; n < nEnode; n++)
@@ -291,7 +304,6 @@ void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars)
 		}
 		fid.close();
 #pragma endregion
-
 	}
 }
 

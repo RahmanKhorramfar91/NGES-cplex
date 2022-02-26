@@ -229,7 +229,7 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 	{
 		for (int i = 0; i < nPlt; i++)
 		{
-			//// do not allow decommissioning of hydro plants
+			//// do not allow establishment off-shore wind and hydro plants
 			//Model.add(EV::Xdec[n][5] == 0);
 			if (Plants[i].type == "wind-offshore-new" || Plants[i].type == "hydro-new")
 			{
@@ -310,7 +310,7 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 		{
 			float s1 = std::pow(1.0 / (1 + WACC), battery_lifetime);
 			float capco = WACC / (1 - s1);
-			ex_elec_str += capco* Estorage[r].power_cost * EV::YeCD[n][r] + capco*Estorage[r].energy_cost * EV::YeLev[n][r];
+			ex_elec_str += capco * Estorage[r].power_cost * EV::YeCD[n][r] + capco * Estorage[r].energy_cost * EV::YeLev[n][r];
 			ex_elec_str += Estorage[r].FOM * EV::YeStr[n][r]; // fixed cost per kw per year
 		}
 	}
@@ -340,17 +340,13 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 	exp0.end();
 #pragma endregion
 
-
 #pragma region Electricity Network Constraints
 	int const_size = 0;
 
-	// C1: number of generation units at each node
+	// C1, C2: number of generation units at each node
 	int existP = 0;
 	for (int n = 0; n < nEnode; n++)
 	{
-		int j = 0;
-		bool if_off_shore = std::find(Enodes[n].Init_plt_types.begin(), Enodes[n].Init_plt_types.end(), "wind_offshore") != Enodes[n].Init_plt_types.end();
-
 		for (int i = 0; i < nPlt; i++)
 		{
 			// is plant type i part of initial plants types of node n:
@@ -362,23 +358,16 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 				int ind1 = std::find(Enodes[n].Init_plt_types.begin(), Enodes[n].Init_plt_types.end(), tp) - Enodes[n].Init_plt_types.begin();
 				Model.add(EV::Xop[n][i] == Enodes[n].Init_plt_count[ind1] - EV::Xdec[n][i] + EV::Xest[n][i]);
 				const_size++;
-				j++;
+
 			}
 			else
 			{
 				Model.add(EV::Xop[n][i] == -EV::Xdec[n][i] + EV::Xest[n][i]);
 				const_size++;
 			}
-		}
-	}
 
-	// C2: maximum number of each plant type
-	for (int n = 0; n < nEnode; n++)
-	{
-		for (int i = 0; i < nPlt; i++)
-		{
-			Model.add(EV::Xop[n][i] <= Plants[i].Umax);
-			const_size++;
+			//C2: maximum number of each plant type
+			Model.add(EV::Xop[n][i] <= Plants[i].Umax); const_size++;
 		}
 	}
 
@@ -398,9 +387,7 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 					Model.add(-Plants[i].rampD * EV::Xop[n][i] <= EV::prod[n][t][i] - EV::prod[n][t - 1][i]);
 					Model.add(EV::prod[n][t][i] - EV::prod[n][t - 1][i] <= Plants[i].rampU * EV::Xop[n][i]);
 					const_size += 2;
-
 				}
-
 			}
 		}
 	}
@@ -408,12 +395,12 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 	// C5, C6: flow limit for electricity
 	for (int br = 0; br < nBr; br++)
 	{
-		int fb = Branches[br].from_bus;
-		int tb = Branches[br].to_bus;
-		int tbi = std::find(Enodes[fb].adj_buses.begin(), Enodes[fb].adj_buses.end(), tb) - Enodes[fb].adj_buses.begin();
+		//int fb = Branches[br].from_bus;
+		//int tb = Branches[br].to_bus;
+		//int tbi = std::find(Enodes[fb].adj_buses.begin(), Enodes[fb].adj_buses.end(), tb) - Enodes[fb].adj_buses.begin();
 		//Model.add(EV::Ze[fb][tbi]); 
 		const_size++;
-		int fbi = std::find(Enodes[tb].adj_buses.begin(), Enodes[tb].adj_buses.end(), fb) - Enodes[tb].adj_buses.begin();
+		//int fbi = std::find(Enodes[tb].adj_buses.begin(), Enodes[tb].adj_buses.end(), fb) - Enodes[tb].adj_buses.begin();
 		//Model.add(EV::Ze[tb][fbi]); 
 		const_size++;
 		for (int t = 0; t < Te.size(); t++)
@@ -480,8 +467,8 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 	{
 		int fb = Branches[br].from_bus;
 		int tb = Branches[br].to_bus;
-		int tbi = std::find(Enodes[fb].adj_buses.begin(), Enodes[fb].adj_buses.end(), tb) - Enodes[fb].adj_buses.begin();
-		int fbi = std::find(Enodes[tb].adj_buses.begin(), Enodes[tb].adj_buses.end(), fb) - Enodes[tb].adj_buses.begin();
+		//int tbi = std::find(Enodes[fb].adj_buses.begin(), Enodes[fb].adj_buses.end(), tb) - Enodes[fb].adj_buses.begin();
+		//int fbi = std::find(Enodes[tb].adj_buses.begin(), Enodes[tb].adj_buses.end(), fb) - Enodes[tb].adj_buses.begin();
 
 		for (int t = 0; t < Te.size(); t++)
 		{
@@ -492,6 +479,7 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 			}
 			else
 			{
+				// Big M = Branches[br].suscep * 24
 				Model.add(EV::flowE[br][t] - Branches[br].suscep * (EV::theta[tb][t] - EV::theta[fb][t]) <= 1e-2 + Branches[br].suscep * 24 * (1 - EV::Ze[br]));
 				Model.add(-1e-2 - Branches[br].suscep * 24 * (1 - EV::Ze[br]) <= EV::flowE[br][t] - Branches[br].suscep * (EV::theta[tb][t] - EV::theta[fb][t]));
 			}
@@ -523,7 +511,9 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 		{
 			for (int i = 0; i < nPlt; i++)
 			{
-				if (Plants[i].type == "solar" || Plants[i].type == "wind" || Plants[i].type == "hydro" || Plants[i].type == "solar-UPV" || Plants[i].type == "wind-new" || Plants[i].type == "hydro-new")
+				if (Plants[i].type == "solar" || Plants[i].type == "wind" ||
+					Plants[i].type == "hydro" || Plants[i].type == "solar-UPV" ||
+					Plants[i].type == "wind-new" || Plants[i].type == "hydro-new")
 				{
 					Model.add(EV::prod[n][t][i] <= Plants[i].prod_profile[Te[t]] * EV::Xop[n][i]);
 					const_size++;
@@ -543,21 +533,24 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 		}
 	}
 
-	//C12, C13: Emission limit and RPS constraints
-	IloExpr exp2(env); IloExpr exp3(env);
+	//C12: RPS constraints
+	//IloExpr exp2(env);
+	IloExpr exp3(env);
 	float total_demand = 0;
 	for (int n = 0; n < nEnode; n++)
 	{
 		for (int t = 0; t < Te.size(); t++)
 		{
-			total_demand += Enodes[n].demand[Te[t]];
+			total_demand += time_weight[t] * Enodes[n].demand[Te[t]];
 
 			for (int i = 0; i < nPlt; i++)
 			{
-				exp2 += time_weight[t] * Plants[i].emis_rate * EV::prod[n][t][i];
-				if (Plants[i].type == "solar" || Plants[i].type == "wind" || Plants[i].type == "hydro" || Plants[i].type == "solar-UPV" || Plants[i].type == "wind-new" || Plants[i].type == "hydro-new")
+				//exp2 += time_weight[t] * Plants[i].emis_rate * EV::prod[n][t][i];
+				if (Plants[i].type == "solar" || Plants[i].type == "wind" ||
+					Plants[i].type == "hydro" || Plants[i].type == "solar-UPV" ||
+					Plants[i].type == "wind-new" || Plants[i].type == "hydro-new")
 				{
-					exp3 += EV::prod[n][t][i]; // production from VRE
+					exp3 += time_weight[t] * EV::prod[n][t][i]; // production from VRE
 				}
 
 			}
@@ -568,26 +561,43 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 	//Model.add(exp2 <= Emis_lim);
 	Model.add(exp3 >= RPS * total_demand);
 
-	// C14,C15,C16
+	// C14,C15,C16 storage constraints
 	for (int n = 0; n < nEnode; n++)
 	{
 		for (int t = 0; t < Te.size(); t++)
 		{
 			for (int r = 0; r < neSt; r++)
 			{
-				if (t == 0)
+				if (t == Te.size()-1)
 				{
-					Model.add(EV::eSlev[n][t][r] == 0);
+					Model.add(EV::eSlev[n][t][r] <= EV::eSlev[n][0][r]);
+				}
+				else if (t == 0)
+				{
+					Model.add(EV::eSlev[n][t][r] ==
+						Estorage[r].eff_ch * EV::eSch[n][t][r] -
+						(EV::eSdis[n][t][r] / Estorage[r].eff_disCh));
 				}
 				else
 				{
-					Model.add(EV::eSlev[n][t][r] == EV::eSlev[n][t - 1][r] + Estorage[r].eff_ch * EV::eSch[n][t][r] - (EV::eSdis[n][t][r] / Estorage[r].eff_disCh));
+					Model.add(EV::eSlev[n][t][r] == EV::eSlev[n][t - 1][r] +
+						Estorage[r].eff_ch * EV::eSch[n][t][r] -
+						(EV::eSdis[n][t][r] / Estorage[r].eff_disCh));
 				}
 				Model.add(EV::YeCD[n][r] >= EV::eSdis[n][t][r]);
 				Model.add(EV::YeCD[n][r] >= EV::EV::eSch[n][t][r]);
 
 				Model.add(EV::YeLev[n][r] >= EV::eSlev[n][t][r]);
 			}
+		}
+	}
+
+	// C17: if an storage established or not
+	for (int n = 0; n < nEnode; n++)
+	{
+		for (int r = 0; r < neSt; r++)
+		{
+			Model.add(EV::YeLev[n][r] <= 10e10 * EV::YeStr[n][r]);
 		}
 	}
 #pragma endregion
