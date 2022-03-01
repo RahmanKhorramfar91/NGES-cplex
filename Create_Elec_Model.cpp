@@ -31,7 +31,6 @@ void Populate_EV(bool int_vars_relaxed, IloModel& Model, IloEnv& env)
 {
 
 #pragma region Fetch Data
-
 	vector<gnode> Gnodes = Params::Gnodes;
 	vector<pipe> PipeLines = Params::PipeLines;
 	vector<enode> Enodes = Params::Enodes;
@@ -172,8 +171,6 @@ void Populate_EV(bool int_vars_relaxed, IloModel& Model, IloEnv& env)
 	EV::Ze = Ze;
 
 #pragma endregion
-
-
 }
 
 void Elec_Model(IloModel& Model, IloEnv& env)

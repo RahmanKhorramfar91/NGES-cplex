@@ -492,7 +492,6 @@ void gnode::read_ng_demand_data(string name, vector<gnode>& Gnodes)
 			Gnodes[i].demG.push_back(dem2);
 		}
 	}
-
 }
 
 

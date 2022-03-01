@@ -17,8 +17,14 @@ double UB_X_prod_vars_given(bool PrintVars, int** Xs, int** XestS, int** XdecS, 
 
 void Read_rep_days(string name, vector<int>& Rep, vector<int>& RepCount);
 
-void Elec_Model(IloModel& Model, IloEnv& env);
+
 void Populate_EV(bool int_vars_relaxed, IloModel& Model, IloEnv& env);
+void Elec_Model(IloModel& Model, IloEnv& env);
+void Populate_GV(IloModel& Model, IloEnv& env);
+void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj);
+
+void Print_EV(IloCplex cplex, double obj, double gap, double Elapsed_time);
+void Print_GV(IloCplex cplex, double obj, double gap, double Elapsed_time);
 
 struct EV
 {
@@ -45,4 +51,27 @@ struct EV
 	static	IloNumVar shedding_cost;
 	static	IloNumVar elec_storage_cost;
 	static	IloNumVar Emit_var;
+};
+
+struct GV
+{
+
+	static IloNumVarArray Xstr;
+	static IloNumVarArray Xvpr;
+	static NumVar2D Sstr;
+	static NumVar2D Svpr;
+	static NumVar2D Sliq;
+	static NumVar2D supply;
+	static NumVar2D curtG;
+	static NumVar2D flowGG;
+	static NumVar3D flowGE;
+	static NumVar3D flowGL;
+	static NumVar3D flowVG;
+	static IloNumVarArray Zg;
+
+	static IloNumVar strInv_cost;
+	static IloNumVar pipe_cost;
+	static IloNumVar gSshedd_cost;
+	static IloNumVar gFixVar_cost;
+	static IloNumVar NG_import_cost;
 };

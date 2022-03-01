@@ -145,12 +145,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Create_Elec_Model.cpp" />
-    <ClCompile Include="Electricity Model.cpp" />
+    <ClCompile Include="Create_NG_Model.cpp" />
+    <ClCompile Include="Models.cpp" />
     <ClCompile Include="LBs.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="MidModel.cpp" />
     <ClCompile Include="NGES Model.cpp" />
     <ClCompile Include="NG Model.cpp" />
+    <ClCompile Include="PrintVars.cpp" />
     <ClCompile Include="ProblemData.cpp" />
     <ClCompile Include="UBs.cpp" />
   </ItemGroup>

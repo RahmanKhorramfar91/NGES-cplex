@@ -30,7 +30,7 @@
     <ClCompile Include="LBs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Electricity Model.cpp">
+    <ClCompile Include="Models.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="NG Model.cpp">
@@ -40,6 +40,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Create_Elec_Model.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Create_NG_Model.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PrintVars.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

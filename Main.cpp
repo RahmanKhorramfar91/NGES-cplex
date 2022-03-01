@@ -97,7 +97,8 @@ int main()
 
 	double LB = 0; double opt = 0; double UB1 = 0; double UB2 = 0;
 	double MidSol = 0;
-	Electricy_Network_Model(int_vars_relaxed, print_vars);
+	//Electricy_Network_Model(int_vars_relaxed, print_vars);
+	NG_Network_Model(true);
 	//NG_Network_Model(true);
 	//opt = NGES_Model(false, true);
 	//FullModel(int_vars_relaxed, false);
