@@ -4,6 +4,7 @@ typedef IloArray<IloNumVarArray> NumVar2D; // to define 2-D decision variables
 typedef IloArray<NumVar2D> NumVar3D;  // to define 3-D decision variables
 typedef IloArray<NumVar3D> NumVar4D;  // to define 4-D decision variables
 
+#pragma region EV struct
 NumVar2D EV::Xest; // integer (continues) for plants
 NumVar2D EV::Xdec; // integer (continues) for plants
 NumVar2D EV::YeCD; // continuous: charge/discharge capacity
@@ -26,8 +27,40 @@ IloNumVar EV::thermal_fuel_cost;
 IloNumVar EV::shedding_cost;
 IloNumVar EV::elec_storage_cost;
 IloNumVar EV::Emit_var;
+IloNumVar EV::e_system_cost;
 
-void Populate_EV(bool int_vars_relaxed, IloModel& Model, IloEnv& env)
+#pragma endregion
+
+#pragma region NG struct
+IloNumVarArray GV::Xstr;
+IloNumVarArray GV::Xvpr;
+NumVar2D GV::Sstr;
+NumVar2D GV::Svpr;
+NumVar2D GV::Sliq;
+NumVar2D GV::supply;
+NumVar2D GV::curtG;
+NumVar2D GV::flowGG;
+NumVar3D GV::flowGE;
+NumVar3D GV::flowGL;
+NumVar3D GV::flowVG;
+IloNumVarArray GV::Zg;
+IloNumVar GV::strInv_cost;
+IloNumVar GV::pipe_cost;
+IloNumVar GV::gShedd_cost;
+IloNumVar GV::gStrFOM_cost;
+IloNumVar GV::NG_import_cost;
+IloNumVar GV::NG_system_cost;
+#pragma endregion
+
+#pragma region Coupling struct (CV)
+IloNumVar CV::xi;
+IloNumVar CV::NG_emis;
+IloNumVar CV::E_emis;
+float CV::used_emis_cap;
+#pragma endregion
+
+
+void Populate_EV(IloModel& Model, IloEnv& env)
 {
 
 #pragma region Fetch Data
@@ -58,8 +91,6 @@ void Populate_EV(bool int_vars_relaxed, IloModel& Model, IloEnv& env)
 	int pipe_lifespan = Params::pipe_lifespan;
 	map<int, vector<int>> Le = Params::Le;
 	vector<int> RepDaysCount = Params::RepDaysCount;
-	float Emis_lim = Params::Emis_lim;
-	float RPS = Params::RPS;
 #pragma endregion
 
 #pragma region Electricity network DVs
@@ -85,7 +116,7 @@ void Populate_EV(bool int_vars_relaxed, IloModel& Model, IloEnv& env)
 	}
 	for (int n = 0; n < nEnode; n++)
 	{
-		if (int_vars_relaxed)
+		if (Setting::relax_int_vars)
 		{
 			Xest[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOFLOAT);
 			Xdec[n] = IloNumVarArray(env, nPlt, 0, IloInfinity, ILOFLOAT);
@@ -147,7 +178,7 @@ void Populate_EV(bool int_vars_relaxed, IloModel& Model, IloEnv& env)
 	IloNumVar elec_storage_cost(env, 0, IloInfinity, ILOFLOAT);
 	IloNumVar Emit_var(env, 0, IloInfinity, ILOFLOAT);
 
-
+	EV::e_system_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
 	EV::curtE = curtE;
 	EV::decom_cost = decom_cost;
 	EV::elec_storage_cost = elec_storage_cost;
@@ -173,7 +204,7 @@ void Populate_EV(bool int_vars_relaxed, IloModel& Model, IloEnv& env)
 #pragma endregion
 }
 
-void Elec_Model(IloModel& Model, IloEnv& env)
+void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 {
 	//auto start = chrono::high_resolution_clock::now();
 #pragma region Fetch Data
@@ -213,8 +244,6 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 	int battery_lifetime = Params::battery_lifetime;
 	map<int, vector<int>> Le = Params::Le;
 	vector<int> RepDaysCount = Params::RepDaysCount;
-	float Emis_lim = Params::Emis_lim;
-	float RPS = Params::RPS;
 #pragma endregion
 
 
@@ -255,7 +284,7 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 	IloExpr ex_shedd(env);
 	IloExpr ex_trans(env);
 	IloExpr ex_elec_str(env);
-	IloExpr exp0(env);
+
 
 	for (int n = 0; n < nEnode; n++)
 	{
@@ -322,9 +351,10 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 		// find the index of tb in the adj_buses of the fb
 		int tbi = std::find(Enodes[fb].adj_buses.begin(), Enodes[fb].adj_buses.end(), tb) - Enodes[fb].adj_buses.begin();
 		ex_trans += capco * trans_unit_cost * Branches[b].maxFlow * Branches[b].length * EV::Ze[b];
+		Model.add(EV::Ze[b]);
 	}
-	exp0 = ex_est + ex_decom + ex_fix + ex_var + ex_thermal_fuel + ex_shedd + ex_trans + ex_elec_str;
-	Model.add(IloMinimize(env, exp0));
+	exp_Eobj = ex_est + ex_decom + ex_fix + ex_var + ex_thermal_fuel + ex_shedd + ex_trans + ex_elec_str;
+
 	Model.add(EV::est_cost == ex_est);
 	Model.add(EV::decom_cost == ex_decom);
 	Model.add(EV::fixed_cost == ex_fix);
@@ -334,7 +364,7 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 	Model.add(EV::shedding_cost == ex_shedd);
 	Model.add(EV::elec_storage_cost == ex_elec_str);
 
-	exp0.end();
+	Model.add(exp_Eobj == EV::e_system_cost);
 #pragma endregion
 
 #pragma region Electricity Network Constraints
@@ -556,7 +586,7 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 
 	//Model.add(exp2 == EV::Emit_var[0]);
 	//Model.add(exp2 <= Emis_lim);
-	Model.add(exp3 >= RPS * total_demand);
+	Model.add(exp3 >= Setting::RPS * total_demand);
 
 	// C14,C15,C16 storage constraints
 	for (int n = 0; n < nEnode; n++)
@@ -565,7 +595,7 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 		{
 			for (int r = 0; r < neSt; r++)
 			{
-				if (t == Te.size()-1)
+				if (t == Te.size() - 1)
 				{
 					Model.add(EV::eSlev[n][t][r] <= EV::eSlev[n][0][r]);
 				}
@@ -596,6 +626,527 @@ void Elec_Model(IloModel& Model, IloEnv& env)
 		{
 			Model.add(EV::YeLev[n][r] <= 10e10 * EV::YeStr[n][r]);
 		}
+	}
+#pragma endregion
+
+}
+
+
+void Populate_GV(IloModel& Model, IloEnv& env)
+{
+
+#pragma region Fetch Data
+
+	vector<gnode> Gnodes = Params::Gnodes;
+	vector<pipe> PipeLines = Params::PipeLines;
+	vector<enode> Enodes = Params::Enodes;
+	vector<plant> Plants = Params::Plants;
+	vector<eStore> Estorage = Params::Estorage;
+	vector<exist_gSVL> Exist_SVL = Params::Exist_SVL;
+	int nSVL = Exist_SVL.size();
+	vector<SVL> SVLs = Params::SVLs;
+	vector<branch> Branches = Params::Branches;
+	int nEnode = Enodes.size();
+	int nPlt = Plants.size();
+	int nBr = Branches.size();
+	int neSt = Estorage.size();
+	int nPipe = PipeLines.size();
+	vector<int> Tg = Params::Tg;
+	//vector<int> Te = Params::Te;
+	vector<int> time_weight = Params::time_weight;
+	float pi = 3.1415926535897;
+	int nGnode = Gnodes.size();
+	float WACC = Params::WACC;
+	int trans_unit_cost = Params::trans_unit_cost;
+	int trans_line_lifespan = Params::trans_line_lifespan;
+	float NG_price = Params::NG_price;
+	float dfo_pric = Params::dfo_pric;
+	float coal_price = Params::coal_price;
+	float E_curt_cost = Params::E_curt_cost;
+	float G_curt_cost = Params::G_curt_cost;
+	float pipe_per_mile = Params::pipe_per_mile;
+	int pipe_lifespan = Params::pipe_lifespan;
+	map<int, vector<int>> Le = Params::Le;
+	map<int, vector<int>> Lg = Params::Lg;
+	vector<int> RepDaysCount = Params::RepDaysCount;
+#pragma endregion
+
+#pragma region NG network DVs
+
+	// NG vars
+	GV::Xstr = IloNumVarArray(env, nSVL, 0, IloInfinity, ILOFLOAT);
+	GV::Xvpr = IloNumVarArray(env, nSVL, 0, IloInfinity, ILOFLOAT);
+
+	GV::Sstr = NumVar2D(env, nSVL);
+	GV::Svpr = NumVar2D(env, nSVL);
+	GV::Sliq = NumVar2D(env, nSVL);
+	GV::supply = NumVar2D(env, nGnode);
+	GV::curtG = NumVar2D(env, nGnode);
+	GV::flowGG = NumVar2D(env, nPipe);
+	GV::flowGE = NumVar3D(env, nGnode);
+	GV::flowGL = NumVar3D(env, nGnode);
+	GV::flowVG = NumVar3D(env, nSVL);
+	GV::Zg = IloNumVarArray(env, nPipe, 0, IloInfinity, ILOBOOL);
+	GV::strInv_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+	GV::pipe_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+	GV::gShedd_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+	GV::gStrFOM_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+	GV::NG_import_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+	GV::NG_system_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+
+
+	for (int i = 0; i < nPipe; i++)
+	{
+		// uni-directional
+		GV::flowGG[i] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+	}
+	for (int j = 0; j < nSVL; j++)
+	{
+		GV::Sstr[j] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		GV::Svpr[j] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		GV::Sliq[j] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		GV::flowVG[j] = NumVar2D(env, nGnode);
+		for (int k = 0; k < nGnode; k++)
+		{
+			GV::flowVG[j][k] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		}
+	}
+
+	for (int k = 0; k < nGnode; k++)
+	{
+		GV::supply[k] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		GV::curtG[k] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		GV::flowGE[k] = NumVar2D(env, nEnode);
+		GV::flowGL[k] = NumVar2D(env, nSVL);
+		for (int j = 0; j < nSVL; j++)
+		{
+			GV::flowGL[k][j] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+
+		}
+		for (int n = 0; n < nEnode; n++)
+		{
+			GV::flowGE[k][n] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		}
+	}
+#pragma endregion
+
+}
+
+void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj)
+{
+
+#pragma region Fetch Data
+	vector<gnode> Gnodes = Params::Gnodes;
+	vector<pipe> PipeLines = Params::PipeLines;
+	vector<enode> Enodes = Params::Enodes;
+	vector<plant> Plants = Params::Plants;
+	vector<eStore> Estorage = Params::Estorage;
+	vector<exist_gSVL> Exist_SVL = Params::Exist_SVL;
+	int nSVL = Exist_SVL.size();
+	vector<SVL> SVLs = Params::SVLs;
+	vector<branch> Branches = Params::Branches;
+	int nEnode = Enodes.size();
+	int nPlt = Plants.size();
+	int nBr = Branches.size();
+	int neSt = Estorage.size();
+	int nPipe = PipeLines.size();
+	vector<int> Tg = Params::Tg;
+	//vector<int> Te = Params::Te;
+	vector<int> time_weight = Params::time_weight;
+	float pi = 3.1415926535897;
+	int nGnode = Gnodes.size();
+	float WACC = Params::WACC;
+	int trans_unit_cost = Params::trans_unit_cost;
+	int trans_line_lifespan = Params::trans_line_lifespan;
+	int SVL_lifetime = Params::SVL_lifetime;
+	float NG_price = Params::NG_price;
+	float dfo_pric = Params::dfo_pric;
+	float coal_price = Params::coal_price;
+	float E_curt_cost = Params::E_curt_cost;
+	float G_curt_cost = Params::G_curt_cost;
+	float pipe_per_mile = Params::pipe_per_mile;
+	int pipe_lifespan = Params::pipe_lifespan;
+	map<int, vector<int>> Le = Params::Le;
+	map<int, vector<int>> Lg = Params::Lg;
+	vector<int> RepDaysCount = Params::RepDaysCount;
+#pragma endregion
+
+
+#pragma region NG network related costs
+	//	IloExpr exp_GVobj(env);
+	IloExpr exp_NG_import_cost(env);
+	IloExpr exp_invG(env);
+	IloExpr exp_pipe(env);
+	IloExpr exp_curt(env);
+	IloExpr exp_StrFOM(env);
+
+	// cost of establishing new inter-network pipelines
+	for (int i = 0; i < nPipe; i++)
+	{
+		float s1 = std::pow(1.0 / (1 + WACC), pipe_lifespan);
+		float capco = WACC / (1 - s1);
+		float cost1 = PipeLines[i].length * pipe_per_mile;
+
+		exp_pipe += capco * cost1 * GV::Zg[i];
+	}
+
+	// fuel cost
+	for (int k = 0; k < nGnode; k++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			exp_NG_import_cost += RepDaysCount[tau] * GV::supply[k][tau] * NG_price;
+		}
+	}
+
+	// storage investment cost
+	for (int j = 0; j < nSVL; j++)
+	{
+		float s1 = std::pow(1.0 / (1 + WACC), SVL_lifetime);
+		float capco = WACC / (1 - s1);
+		exp_invG += capco * (SVLs[0].Capex * GV::Xstr[j] + SVLs[1].Capex * GV::Xvpr[j]);
+	}
+
+	// storage FOM cost
+	for (int j = 0; j < nSVL; j++)
+	{
+		exp_StrFOM += SVLs[0].FOM * (Exist_SVL[j].vap_cap + GV::Xvpr[j]);
+		exp_StrFOM += SVLs[1].FOM * (Exist_SVL[j].store_cap + GV::Xstr[j]);
+	}
+
+	// Load shedding cost
+	for (int k = 0; k < nGnode; k++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			exp_curt += RepDaysCount[tau] * G_curt_cost * GV::curtG[k][tau];
+		}
+	}
+
+
+	exp_GVobj += exp_NG_import_cost + exp_invG + exp_pipe + exp_curt + exp_StrFOM;
+
+	Model.add(GV::strInv_cost == exp_invG);
+	Model.add(GV::pipe_cost == exp_pipe);
+	Model.add(GV::gShedd_cost == exp_curt);
+	Model.add(GV::gStrFOM_cost == exp_StrFOM);
+	Model.add(GV::NG_import_cost == exp_NG_import_cost);
+	Model.add(GV::NG_system_cost == exp_GVobj);
+#pragma endregion
+
+	//Model.add(IloMinimize(env, exp0));
+
+	//exp0.end();
+
+
+#pragma region NG Network Constraint
+	// C1, C2: flow limit for NG
+	for (int i = 0; i < nPipe; i++)
+	{
+		int is_exist = PipeLines[i].is_exist;
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			if (is_exist == 1)
+			{
+				Model.add(GV::flowGG[i][tau] <= PipeLines[i].cap);
+			}
+			else
+			{
+				Model.add(GV::flowGG[i][tau] <= PipeLines[i].cap * GV::Zg[i]);
+			}
+		}
+	}
+
+	//C3: flow balance, NG node
+	for (int k = 0; k < nGnode; k++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			IloExpr exp_gg_exp(env);
+			IloExpr exp_gg_imp(env);
+			IloExpr exp_ge_flow(env);
+			IloExpr exp_store(env);
+			for (int l : Gnodes[k].Lexp) { exp_gg_exp += GV::flowGG[l][tau]; }
+			for (int l : Gnodes[k].Limp) { exp_gg_imp += GV::flowGG[l][tau]; }
+
+
+			for (int n : Gnodes[k].adjE) { exp_ge_flow += GV::flowGE[k][n][tau]; }
+			for (int j : Gnodes[k].adjS)
+			{
+				exp_store += GV::flowVG[j][k][tau] - GV::flowGL[k][j][tau];
+			}
+
+			//Model.add(exp_ge_flow == 0);
+			//Model.add(GV::supply[k][tau] + exp_gg_flow - exp_store + GV::curtG[k][tau] == Gnodes[k].demG[Tg[tau]] + Gnodes[k].out_dem);
+			Model.add(GV::supply[k][tau] - exp_gg_exp + exp_gg_imp - exp_ge_flow + exp_store + GV::curtG[k][tau] == Gnodes[k].demG[Tg[tau]]);
+		}
+	}
+
+
+	// C3,C4: injection (supply) limit and curtailment limit
+	for (int k = 0; k < nGnode; k++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			Model.add(GV::supply[k][tau] >= Gnodes[k].injL);
+			Model.add(GV::supply[k][tau] <= Gnodes[k].injU);
+
+			Model.add(GV::curtG[k][tau] <= Gnodes[k].demG[Tg[tau]]);
+		}
+	}
+
+	//C5: storage balance
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			if (tau == 0)
+			{
+				//Model.add(GV::Sstr[j][tau] == Exist_SVL[j].store_cap*0.5);
+				Model.add(GV::Sstr[j][tau] == Exist_SVL[j].store_cap * 0 + GV::Sliq[j][tau] - GV::Svpr[j][tau] / SVLs[1].eff_disCh);
+				//Model.add(GV::Sstr[j][tau] == GV::Sliq[j][tau] - GV::Svpr[j][tau] / SVLs[1].eff_disCh);
+				continue;
+			}
+			Model.add(GV::Sstr[j][tau] == (1 - SVLs[0].BOG) * GV::Sstr[j][tau - 1] + GV::Sliq[j][tau] - GV::Svpr[j][tau] / SVLs[1].eff_disCh);
+		}
+	}
+
+	//C6: calculate Sliq
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			IloExpr exp(env);
+			// get the ng nodes adjacent to SVL j
+			vector<int> NG_adj;
+			for (int k = 0; k < nGnode; k++)
+			{
+				for (int j2 : Gnodes[k].adjS)
+				{
+					if (j2 == j)
+					{
+						NG_adj.push_back(k);
+					}
+				}
+			}
+			for (int k : NG_adj)
+			{
+				exp += GV::flowGL[k][j][tau];
+			}
+			Model.add(GV::Sliq[j][tau] == exp);
+		}
+	}
+
+	//C6: Sliq limit
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			Model.add(GV::Sliq[j][tau] <= Exist_SVL[j].liq_cap);
+		}
+	}
+
+	//C7: calculate Svpr
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			IloExpr exp(env);
+			// get the ng nodes adjacent to SVL j
+			vector<int> NG_adj;
+			for (int k = 0; k < nGnode; k++)
+			{
+				for (int j2 : Gnodes[k].adjS)
+				{
+					if (j2 == j)
+					{
+						NG_adj.push_back(k);
+					}
+				}
+			}
+			for (int k : NG_adj)
+			{
+				exp += GV::flowVG[j][k][tau];
+			}
+			Model.add(GV::Svpr[j][tau] == exp);
+		}
+	}
+
+	//C8: Svpr limit
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			Model.add(GV::Svpr[j][tau] <= Exist_SVL[j].vap_cap + GV::Xvpr[j]);
+		}
+	}
+
+	//C8: Sstr limit
+	for (int j = 0; j < nSVL; j++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			Model.add(GV::Sstr[j][tau] <= Exist_SVL[j].store_cap + GV::Xstr[j]);
+		}
+	}
+
+#pragma endregion
+
+}
+
+void Coupling_Constraints(IloModel& Model, IloEnv& env)
+{
+
+	CV::xi = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+	CV::NG_emis = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+	CV::E_emis = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+
+#pragma region Fetch Data
+	vector<gnode> Gnodes = Params::Gnodes;
+	//vector<pipe> PipeLines = Params::PipeLines;
+	vector<enode> Enodes = Params::Enodes;
+	vector<plant> Plants = Params::Plants;
+	//vector<eStore> Estorage = Params::Estorage;
+	//vector<exist_gSVL> Exist_SVL = Params::Exist_SVL;
+	//int nSVL = Exist_SVL.size();
+	vector<SVL> SVLs = Params::SVLs;
+	vector<branch> Branches = Params::Branches;
+	int nEnode = Enodes.size();
+	int nPlt = Plants.size();
+	int nBr = Branches.size();
+	//int neSt = Estorage.size();
+	//int nPipe = PipeLines.size();
+	vector<int> Tg = Params::Tg;
+	vector<int> Te = Params::Te;
+	vector<int> time_weight = Params::time_weight;
+	//float pi = 3.1415926535897;
+	int nGnode = Gnodes.size();
+	map<int, vector<int>> Le = Params::Le;
+	map<int, vector<int>> Lg = Params::Lg;
+	vector<int> RepDaysCount = Params::RepDaysCount;
+	float NG_emis_rate = Params::NG_emis_rate;
+#pragma endregion
+
+
+#pragma region Coupling 1
+	IloExpr ex_xi(env);
+	for (int k = 0; k < nGnode; k++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			for (int n : Gnodes[k].adjE)
+			{
+				IloExpr exp2(env);
+				for (int t = tau * 24; t < (tau + 1) * 24; t++)
+				{
+					for (int i = 0; i < nPlt; i++)
+					{
+						if (Plants[i].type == "ng" || Plants[i].type == "CT" || Plants[i].type == "CC" || Plants[i].type == "CC-CCS")
+						{
+							exp2 += time_weight[t] * Plants[i].heat_rate * EV::prod[n][t][i];
+						}
+					}
+				}
+				Model.add(RepDaysCount[tau] * GV::flowGE[k][n][tau] - exp2 <= 1e-2);
+				Model.add(exp2 - RepDaysCount[tau] * GV::flowGE[k][n][tau] <= 1e-2);
+				ex_xi += RepDaysCount[tau] * GV::flowGE[k][n][tau];
+			}
+		}
+	}
+	if (Setting::Approach_1_active)
+	{
+		if (Setting::is_xi_given)
+		{
+			Model.add(ex_xi == Setting::xi_val);
+			Model.add(CV::xi == ex_xi);
+		}
+		else
+		{
+			Model.add(CV::xi == ex_xi);
+		}
+	}
+	if (Setting::Approach_2_active && !Setting::xi_LB_obj && !Setting::xi_UB_obj)
+	{
+		// xi must be given
+		Model.add(CV::xi == ex_xi);
+		Model.add(ex_xi == Setting::xi_val);
+	}
+	else if (Setting::Approach_2_active && Setting::xi_LB_obj)
+	{
+		Setting::xi_UB_obj = false;
+		// xi is a variable to be minimized
+		Model.add(CV::xi == ex_xi);
+	}
+
+#pragma endregion
+
+
+#pragma region Coupling 2
+
+	IloExpr ex_NG_emis(env);
+	IloExpr ex_E_emis(env);
+
+	for (int k = 0; k < nGnode; k++)
+	{
+		for (int tau = 0; tau < Tg.size(); tau++)
+		{
+			IloExpr exp_fge(env);
+			for (int n : Gnodes[k].adjE)
+			{
+				exp_fge += RepDaysCount[tau] * NG_emis_rate * (GV::flowGE[k][n][tau]);
+
+			}
+			ex_NG_emis += RepDaysCount[tau] * NG_emis_rate * (GV::supply[k][tau]);
+			exp_fge.end();
+		}
+	}
+	ex_NG_emis -= NG_emis_rate * CV::xi;
+
+
+	for (int n = 0; n < nEnode; n++)
+	{
+		for (int t = 0; t < Te.size(); t++)
+		{
+			for (int i = 0; i < nPlt; i++)
+			{
+				ex_E_emis += time_weight[t] * Plants[i].emis_rate * Plants[i].heat_rate * EV::prod[n][t][i];
+			}
+		}
+	}
+	if (Setting::Approach_1_active)
+	{
+		Model.add(ex_E_emis + ex_NG_emis <= Setting::Emis_lim);
+		Model.add(ex_E_emis == CV::E_emis);
+		Model.add(ex_NG_emis == CV::NG_emis);
+	}
+
+
+
+	if (Setting::Approach_2_active && Setting::DESP_active)
+	{
+		Setting::DGSP_active = false;
+		Model.add(ex_E_emis <= Setting::Emis_lim);
+		//Model.add(ex_NG_emis <= 2.6e6);
+		Model.add(ex_E_emis == CV::E_emis);
+		Model.add(CV::NG_emis);
+		Model.add(CV::E_emis);
+	}
+	else if (Setting::Approach_2_active && Setting::DGSP_active)
+	{
+		Setting::DESP_active = false;
+		double rhs = Setting::Emis_lim - CV::used_emis_cap;
+		rhs = std::max(rhs, 0 + 0.001);
+		Model.add(ex_NG_emis <= rhs);
+		Model.add(CV::E_emis);
+		Model.add(ex_NG_emis == CV::NG_emis);
+	}
+	else if (Setting::Approach_2_active && Setting::xi_LB_obj)
+	{
+		Setting::xi_UB_obj = false;
+		Model.add(ex_E_emis <= Setting::Emis_lim);
+		Model.add(ex_E_emis == CV::E_emis);
+		Model.add(CV::NG_emis);
+		Model.add(CV::E_emis);
 	}
 #pragma endregion
 

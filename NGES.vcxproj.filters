@@ -33,16 +33,10 @@
     <ClCompile Include="Models.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="NG Model.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="MidModel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Create_Elec_Model.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Create_NG_Model.cpp">
+    <ClCompile Include="Modules %28Vars, Const%29.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="PrintVars.cpp">

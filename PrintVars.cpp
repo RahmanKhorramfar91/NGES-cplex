@@ -24,9 +24,18 @@ void Print_EV(IloCplex cplex, double obj, double gap, double Elapsed_time)
 #pragma region print Electricity Network variables
 	int periods2print = 20;
 	ofstream fid;
-	fid.open("DVe.txt");
+	if (Setting::DESP_active)
+	{
+		fid.open("DESP.txt");
+	}
+	else
+	{
+		fid.open("DVe.txt");
+	}
+
 	fid << "Elapsed time: " << Elapsed_time << endl;
-	fid << "\t Electricity Network Obj Value:" << obj << endl;
+	fid << "\t Total cost for both networks:" << obj << endl;
+	fid << "\t Electricity Network Obj Value:" << cplex.getValue(EV::e_system_cost) << endl;
 	fid << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
 	fid << "\n \t Establishment Cost: " << cplex.getValue(EV::est_cost);
 	fid << "\n \t Decommissioning Cost: " << cplex.getValue(EV::decom_cost);
@@ -35,7 +44,8 @@ void Print_EV(IloCplex cplex, double obj, double gap, double Elapsed_time)
 	//fid << "\n \t Emission Cost: " << cplex.getValue(emis_cost);
 	fid << "\n \t (dfo, coal, and nuclear) Fuel Cost: " << cplex.getValue(EV::thermal_fuel_cost);
 	fid << "\n \t Load Shedding Cost: " << cplex.getValue(EV::shedding_cost);
-	fid << "\n \t Storage Cost: " << cplex.getValue(EV::elec_storage_cost) << "\n\n";
+	fid << "\n \t Storage Cost: " << cplex.getValue(EV::elec_storage_cost) << "\n";
+	fid << "\t E Emission: " << cplex.getValue(CV::E_emis) << "\n\n";
 
 	float** XestS = new float* [nEnode];
 	float** XdecS = new float* [nEnode];
@@ -288,21 +298,30 @@ void Print_GV(IloCplex cplex, double obj, double gap, double Elapsed_time)
 	map<int, vector<int>> Le = Params::Le;
 	map<int, vector<int>> Lg = Params::Lg;
 	vector<int> RepDaysCount = Params::RepDaysCount;
-	float Emis_lim = Params::Emis_lim;
-	float RPS = Params::RPS;
 #pragma endregion
 
 #pragma region print NG network variables
 	ofstream fid2;
-	fid2.open("DVg.txt");
+	if (Setting::DGSP_active)
+	{
+		fid2.open("DGSP.txt");
+	}
+	else
+	{
+		fid2.open("DVg.txt");
+	}
+
 	fid2 << "Elapsed time: " << Elapsed_time << endl;
-	fid2 << "\t NG Network Obj Value:" << obj << endl;
+	fid2 << "\t Total cost for both networks:" << obj << endl;
+	fid2 << "\t NG Network Obj Value:" << cplex.getValue(GV::NG_system_cost) << endl;
 	fid2 << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
 	fid2 << "\t NG import Cost: " << cplex.getValue(GV::NG_import_cost) << endl;
 	fid2 << "\t Pipeline Establishment Cost: " << cplex.getValue(GV::pipe_cost) << endl;
 	fid2 << "\t Storatge Investment Cost: " << cplex.getValue(GV::strInv_cost) << endl;
-	fid2 << "\t NG Storage Cost: " << cplex.getValue(GV::gFixVar_cost) << endl;
-	fid2 << "\t NG Load Shedding Cost: " << cplex.getValue(GV::gSshedd_cost) << endl;
+	fid2 << "\t NG Storage Cost: " << cplex.getValue(GV::gStrFOM_cost) << endl;
+	fid2 << "\t NG Load Shedding Cost: " << cplex.getValue(GV::gShedd_cost) << endl;
+	fid2 << "\t NG Emission: " << cplex.getValue(CV::NG_emis) << endl;
+	fid2 << endl;
 	//float** supS = new float* [nGnode];
 	for (int k = 0; k < nGnode; k++)
 	{

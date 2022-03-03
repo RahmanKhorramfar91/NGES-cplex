@@ -4,27 +4,55 @@
 typedef IloArray<IloNumVarArray> NumVar2D; // to define 2-D decision variables
 typedef IloArray<NumVar2D> NumVar3D;  // to define 3-D decision variables
 typedef IloArray<NumVar3D> NumVar4D;  // to define 4-D decision variables
-void Electricy_Network_Model(bool int_vars_relaxed, bool PrintVars);
-void NG_Network_Model(bool PrintVars);
+void Electricy_Network_Model();
+void NG_Network_Model();
 
-double NGES_Model(bool int_vars_relaxed, bool PrintVars);
-double LB_no_flow_lim_no_ramp(bool PrintVars, bool populate_inv_DVs, int** Xs, int** XestS, int** XdecS, double*** Ps);
-double inv_vars_fixed_flow_equation_relaxed(bool PrintVars, int** Xs, int** XestS, int** XdecS, double*** Ps);
-double UB_no_trans_consts(bool PrintVars, int** Xs, int** XestS, int** XdecS);
-double UB_prods_fixed(bool PrintVars, double*** Ps);
-double UB_X_var_given(bool PrintVars, int** Xs, int** XestS, int** XdecS);
-double UB_X_prod_vars_given(bool PrintVars, int** Xs, int** XestS, int** XdecS, double*** Ps);
+double NGES_Model();
+
+double DGSP();
+double DESP();
+
+double XiBounds2();
+
 
 void Read_rep_days(string name, vector<int>& Rep, vector<int>& RepCount);
 
 
-void Populate_EV(bool int_vars_relaxed, IloModel& Model, IloEnv& env);
-void Elec_Model(IloModel& Model, IloEnv& env);
+void Populate_EV(IloModel& Model, IloEnv& env);
+void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj);
 void Populate_GV(IloModel& Model, IloEnv& env);
 void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj);
 
+void Coupling_Constraints(IloModel& Model, IloEnv& env);
+
 void Print_EV(IloCplex cplex, double obj, double gap, double Elapsed_time);
 void Print_GV(IloCplex cplex, double obj, double gap, double Elapsed_time);
+
+
+
+struct Setting
+{
+	static bool print_E_vars;
+	static bool print_NG_vars;
+	static bool relax_int_vars;
+
+	static bool is_xi_given;
+	static double xi_val;
+	static bool xi_UB_obj;
+	static bool xi_LB_obj;
+	static float cplex_gap;
+	static float CPU_limit;
+
+	static int Num_rep_days;
+	static float Emis_lim;
+	static float RPS;
+	static bool Approach_1_active;
+	static bool Approach_2_active;
+
+	static bool DGSP_active;
+	static bool DESP_active;
+};
+
 
 struct EV
 {
@@ -51,8 +79,8 @@ struct EV
 	static	IloNumVar shedding_cost;
 	static	IloNumVar elec_storage_cost;
 	static	IloNumVar Emit_var;
+	static IloNumVar e_system_cost;
 };
-
 struct GV
 {
 
@@ -71,7 +99,18 @@ struct GV
 
 	static IloNumVar strInv_cost;
 	static IloNumVar pipe_cost;
-	static IloNumVar gSshedd_cost;
-	static IloNumVar gFixVar_cost;
+	static IloNumVar gShedd_cost;
+	static IloNumVar gStrFOM_cost;
 	static IloNumVar NG_import_cost;
+	static IloNumVar NG_system_cost;
+};
+
+struct CV
+{
+	static IloNumVar xi; // flow from NG to E network (NG consumed by NG-fired plants)
+	static IloNumVar NG_emis; // emission from NG network
+	static IloNumVar E_emis; // emission from Electricity network. 
+
+
+	static float used_emis_cap; // eta value from the DGSP of the Approach 2
 };

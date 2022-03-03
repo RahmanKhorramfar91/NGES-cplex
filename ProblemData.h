@@ -241,8 +241,8 @@ struct Params
 	static int trans_unit_cost;
 	static int trans_line_lifespan;
 	static float NG_price;
-	static float Emis_lim;
-	static float RPS;
+	//static float Emis_lim;
+	//static float RPS;
 
 	static float dfo_pric;
 	static float coal_price;
@@ -252,7 +252,9 @@ struct Params
 	static float pipe_per_mile;
 	static int pipe_lifespan;
 	static int battery_lifetime;
+	static int SVL_lifetime;
 	static vector<int> RepDaysCount;
+	static float NG_emis_rate;
 
 
 	// natural gas data

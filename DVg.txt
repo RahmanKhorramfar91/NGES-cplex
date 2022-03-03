@@ -1,67 +1,112 @@
-Elapsed time: 0
-	 NG Network Obj Value:7.77994e+06
-	 Gap: 0 Status:Optimal
-	 NG import Cost: 0
-	 Pipeline Establishment Cost: 7.77994e+06
+Elapsed time: 84
+	 Total cost for both networks:1.50408e+11
+	 NG Network Obj Value:1.45412e+11
+	 Gap: 0.000991464 Status:Optimal
+	 NG import Cost: 1.72212e+09
+	 Pipeline Establishment Cost: 7.50387e+06
 	 Storatge Investment Cost: 0
-	 NG Storage Cost: 0
-	 NG Load Shedding Cost: 0
-supply[0][0] = 1.959e+06
-supply[0][1] = 1.959e+06
-supply[2][0] = 666000
-supply[2][1] = 666000
+	 NG Storage Cost: 7.9878e+09
+	 NG Load Shedding Cost: 1.35694e+11
+	 NG Emission: 1.67423e+07
+
+supply[0][0] = 168371
+supply[0][1] = 187637
+supply[2][0] = 462117
+supply[2][1] = 469954
 supply[5][0] = 16688
 supply[5][1] = 19668
-supply[7][0] = 9048
-supply[7][1] = 12288
-supply[12][0] = 399000
-supply[12][1] = 399000
-supply[15][0] = 62000
-supply[15][1] = 62000
+supply[7][0] = 403160
+supply[7][1] = 445019
+supply[12][0] = 48052
+supply[12][1] = 55802
+supply[15][0] = 8175
+supply[15][1] = 34179
 
+CurtG[6][1] = 21021
+CurtG[8][1] = 63269
+CurtG[10][1] = 1843.05
+CurtG[12][0] = 3636
+CurtG[13][1] = 6956.1
+CurtG[14][0] = 10480.4
+CurtG[15][0] = 18453
 
 Zg[1][3] = 1
 Zg[2][1] = 1
-Zg[4][6] = 1
-Zg[8][10] = 1
+Zg[7][9] = 1
+Zg[9][3] = 1
+Zg[10][8] = 1
 Zg[14][10] = 1
 
-flowGG[0][9][0]= 33946
+flowGG[0][9][0]= 80000
 flowGG[0][9][1]= 80000
-flowGG[1][3][0]= 109060
-flowGG[1][3][1]= 282976
-flowGG[2][1][0]= 156650
-flowGG[2][1][1]= 327025
-flowGG[3][14][0]= 87660
-flowGG[3][14][1]= 240214
-flowGG[4][6][0]= 359776
-flowGG[4][6][1]= 346759
-flowGG[6][13][0]= 346999
-flowGG[6][13][1]= 325738
-flowGG[8][10][0]= 172686
-flowGG[8][10][1]= 221857
-flowGG[9][1][1]= 25728
-flowGG[12][4][0]= 391000
-flowGG[12][4][1]= 391000
-flowGG[13][8][0]= 212953
-flowGG[13][8][1]= 285126
-flowGG[14][11][0]= 40869
-flowGG[14][11][1]= 67804
-flowGG[14][10][1]= 124938
+flowGG[1][3][0]= 390453
+flowGG[1][3][1]= 378223
+flowGG[2][1][0]= 448000
+flowGG[2][1][1]= 448000
+flowGG[3][14][0]= 800683
+flowGG[3][14][1]= 794839
+flowGG[6][13][1]= 18353.9
+flowGG[7][9][0]= 394112
+flowGG[7][9][1]= 422272
+flowGG[8][13][0]= 45115
+flowGG[9][3][0]= 440166
+flowGG[9][3][1]= 448000
+flowGG[10][14][0]= 34786.9
+flowGG[10][8][0]= 85382
+flowGG[12][4][0]= 31224
+flowGG[12][4][1]= 44241
+flowGG[13][6][0]= 12777
+flowGG[14][11][0]= 196014
+flowGG[14][11][1]= 179247
+flowGG[14][10][0]= 448000
+flowGG[14][10][1]= 448000
 
-flowGE[0][5][0] = 1.83668e+06
-flowGE[0][5][1] = 1.77136e+06
-flowGE[2][5][0] = 495233
-flowGE[2][5][1] = 317021
-flowGE[12][0][0] = 4364
-flowGE[12][0][1] = 4090
-flowGE[13][1][0] = 101708
-flowGE[15][2][0] = 43547
-flowGE[15][2][1] = 36998
+flowGE[10][3][0] = 155145
+flowGE[10][3][1] = 120120
+flowGE[11][3][0] = 155145
+flowGE[11][3][1] = 120120
+flowGE[14][3][0] = 155145
+flowGE[14][3][1] = 120120
+
+flowGL[1][4][0] = 9957
+flowGL[3][3][0] = 8536
+flowGL[3][3][1] = 8536
+flowGL[7][2][1] = 8175
+flowGL[7][4][1] = 9957
+flowGL[12][0][0] = 9177
+flowGL[12][1][0] = 7651
+flowGL[12][1][1] = 7651
+flowGL[15][0][1] = 9177
+flowGL[15][2][0] = 8175
+
+flowVG[4][3][1] = 19913.9
+flowVG[0][6][1] = 18353.9
+flowVG[2][7][1] = 7672.88
+flowVG[3][10][1] = 17071.9
+flowVG[2][11][1] = 8677.07
+flowVG[1][13][1] = 15302
 
 
 
+Sstr[0][0]= 9177
+Sstr[1][0]= 7651
+Sstr[2][0]= 8175
+Sstr[3][0]= 8536
+Sstr[4][0]= 9957
 
+Svpr[0][1]= 18353.9
+Svpr[1][1]= 15302
+Svpr[2][1]= 16350
+Svpr[3][1]= 17071.9
+Svpr[4][1]= 19913.9
 
-
-
+Sliq[0][0]= 9177
+Sliq[0][1]= 9177
+Sliq[1][0]= 7651
+Sliq[1][1]= 7651
+Sliq[2][0]= 8175
+Sliq[2][1]= 8175
+Sliq[3][0]= 8536
+Sliq[3][1]= 8536
+Sliq[4][0]= 9957
+Sliq[4][1]= 9957
