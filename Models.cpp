@@ -141,8 +141,22 @@ double NGES_Model()
 	NG_Model(Model, env, exp_NGobj);
 
 	// coupling constraints
-	Coupling_Constraints(Model, env);
-
+	IloExpr ex_xi(env);
+	IloExpr ex_NG_emis(env);
+	IloExpr ex_E_emis(env);
+	Coupling_Constraints(Model, env, ex_xi, ex_NG_emis, ex_E_emis);
+	if (Setting::is_xi_given)
+	{
+		Model.add(ex_xi == Setting::xi_val);
+		Model.add(CV::xi == ex_xi);
+	}
+	else
+	{
+		Model.add(CV::xi == ex_xi);
+	}
+	Model.add(ex_E_emis + ex_NG_emis <= Setting::Emis_lim);
+	Model.add(ex_E_emis == CV::E_emis);
+	Model.add(ex_NG_emis == CV::NG_emis);
 
 	if (Setting::xi_LB_obj)
 	{
@@ -213,15 +227,24 @@ double DESP()
 	IloEnv env;
 	IloModel Model(env);
 	IloExpr exp_Eobj(env);
-	Populate_EV(Model, env);
+	Populate_EV(Model, env); Populate_GV(Model, env);
 	Elec_Model(Model, env, exp_Eobj);
 
-	Populate_GV(Model, env);
-	// coupling constraints
-	Setting::Approach_2_active = true;
-	Setting::DESP_active = true; Setting::DGSP_active = false;
 
-	Coupling_Constraints(Model, env);
+	// coupling constraints
+	IloExpr ex_xi(env); IloExpr ex_NG_emis(env); IloExpr ex_E_emis(env);
+	Coupling_Constraints(Model, env, ex_xi, ex_NG_emis, ex_E_emis);
+
+	// Coupling 1
+	Model.add(CV::xi == ex_xi);
+	Model.add(ex_xi == Setting::xi_val);
+
+	// Coupling 2
+	Model.add(ex_E_emis <= Setting::Emis_lim);
+	//Model.add(ex_NG_emis <= 2.6e6);
+	Model.add(ex_E_emis == CV::E_emis);
+	Model.add(CV::NG_emis);
+
 
 	Model.add(IloMinimize(env, exp_Eobj));
 
@@ -266,7 +289,21 @@ double DGSP()
 	Setting::Approach_2_active = true;
 	Setting::DGSP_active = true; Setting::DESP_active = false;
 	// coupling constraints
-	Coupling_Constraints(Model, env);
+	IloExpr ex_xi(env); IloExpr ex_NG_emis(env); IloExpr ex_E_emis(env);
+	Coupling_Constraints(Model, env, ex_xi, ex_NG_emis, ex_E_emis);
+
+	// Coupling 1: xi must be given
+	Model.add(CV::xi == ex_xi);
+	Model.add(ex_xi == Setting::xi_val);
+
+
+	// Coupling 2
+	double rhs = Setting::Emis_lim - CV::used_emis_cap;
+	rhs = std::max(rhs, 0 + 0.001);
+	Model.add(ex_NG_emis <= rhs);
+	Model.add(CV::E_emis);
+	Model.add(ex_NG_emis == CV::NG_emis);
+
 	Model.add(IloMinimize(env, exp_NGobj));
 
 #pragma region Solve the model
@@ -307,7 +344,7 @@ double DGSP()
 }
 
 
-double XiBounds2()
+double Xi_LB2()
 {
 	auto start = chrono::high_resolution_clock::now();
 
@@ -320,11 +357,20 @@ double XiBounds2()
 	Elec_Model(Model, env, exp_Eobj);
 
 	// coupling constraints
-	Coupling_Constraints(Model, env);
-	if (Setting::xi_LB_obj)
-	{
-		Model.add(IloMinimize(env, CV::xi));
-	}
+	IloExpr ex_xi(env); IloExpr ex_NG_emis(env); IloExpr ex_E_emis(env);
+	Coupling_Constraints(Model, env, ex_xi, ex_NG_emis, ex_E_emis);
+	// xi is a variable to be minimized
+	Model.add(CV::xi == ex_xi);
+
+
+	// Coupling 2
+	Model.add(ex_E_emis <= Setting::Emis_lim);
+	Model.add(ex_E_emis == CV::E_emis);
+	Model.add(CV::NG_emis);
+
+
+	Model.add(IloMinimize(env, CV::xi));
+
 
 #pragma region Solve the model
 
@@ -350,4 +396,115 @@ double XiBounds2()
 
 
 	return obj_val;
+}
+
+
+double AUX_UB()
+{
+	auto start = chrono::high_resolution_clock::now();
+
+	IloEnv env;
+	IloModel Model(env);
+	IloExpr exp_NGobj(env);
+	Populate_GV(Model, env);
+	Populate_EV(Model, env);
+	NG_Model(Model, env, exp_NGobj);
+	Setting::Approach_2_active = true;
+	Setting::DGSP_active = true; Setting::DESP_active = false;
+	// coupling constraints
+	IloExpr ex_xi(env); IloExpr ex_NG_emis(env); IloExpr ex_E_emis(env);
+	Coupling_Constraints(Model, env, ex_xi, ex_NG_emis, ex_E_emis);
+	Model.add(CV::xi == ex_xi);
+
+	Model.add(ex_NG_emis <= Setting::Emis_lim);
+	Model.add(ex_NG_emis == CV::NG_emis);
+	Model.add(CV::E_emis);
+
+	Model.add(IloMaximize(env, CV::xi));
+
+
+#pragma region Solve the model
+	IloCplex cplex(Model);
+	cplex.setParam(IloCplex::TiLim, Setting::CPU_limit);
+	cplex.setParam(IloCplex::EpGap, Setting::cplex_gap);
+
+	if (!cplex.solve()) {
+		env.error() << "Failed to optimize AUX!!!" << endl;
+		std::cout << cplex.getStatus();
+		throw(-1);
+	}
+
+	float obj_val = cplex.getObjValue();
+	float gap = cplex.getMIPRelativeGap();
+	auto end = chrono::high_resolution_clock::now();
+	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	std::cout << "Elapsed time: " << Elapsed << endl;
+	std::cout << "\t Obj Value:" << obj_val << endl;
+	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
+#pragma endregion
+
+	if (Setting::print_NG_vars)
+	{
+		Print_GV(cplex, obj_val, gap, Elapsed);
+	}
+	return obj_val;
+}
+
+
+double Xi_UB2(double aux_obj)
+{
+	auto start = chrono::high_resolution_clock::now();
+
+	IloEnv env;
+	IloModel Model(env);
+	IloExpr exp_NGobj(env);
+	IloExpr exp_Eobj(env);
+	Populate_GV(Model, env);
+	Populate_EV(Model, env);
+	Elec_Model(Model, env, exp_Eobj);
+
+	// coupling constraints
+	IloExpr ex_xi(env); IloExpr ex_NG_emis(env); IloExpr ex_E_emis(env);
+	Coupling_Constraints(Model, env, ex_xi, ex_NG_emis, ex_E_emis);
+	// xi is a variable to be minimized
+	Model.add(CV::xi <= aux_obj);
+	Model.add(CV::xi == ex_xi);
+
+
+	// Coupling 2
+	Model.add(ex_E_emis <= Setting::Emis_lim);
+	Model.add(ex_E_emis == CV::E_emis);
+	Model.add(CV::NG_emis);
+
+
+	Model.add(IloMaximize(env, CV::xi));
+
+
+#pragma region Solve the model
+
+	IloCplex cplex(Model);
+	cplex.setParam(IloCplex::TiLim, Setting::CPU_limit);
+	cplex.setParam(IloCplex::EpGap, Setting::cplex_gap);
+
+	if (!cplex.solve()) {
+		env.error() << "Failed to optimize!!!" << endl;
+		std::cout << cplex.getStatus();
+		throw(-1);
+	}
+
+	float obj_val = cplex.getObjValue();
+	float gap = cplex.getMIPRelativeGap();
+	auto end = chrono::high_resolution_clock::now();
+	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	std::cout << "Elapsed time: " << Elapsed << endl;
+	std::cout << "\t Obj Value:" << obj_val << endl;
+	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
+	//std::cout << "Emission tonngage for 2050: " << cplex.getValue(EV::Emit_var) << endl;
+#pragma endregion
+
+
+	return obj_val;
+
+
+
 }

@@ -12,7 +12,9 @@ double NGES_Model();
 double DGSP();
 double DESP();
 
-double XiBounds2();
+double Xi_LB2();
+double AUX_UB();
+double Xi_UB2(double aux_obj);
 
 
 void Read_rep_days(string name, vector<int>& Rep, vector<int>& RepCount);
@@ -23,7 +25,7 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj);
 void Populate_GV(IloModel& Model, IloEnv& env);
 void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj);
 
-void Coupling_Constraints(IloModel& Model, IloEnv& env);
+void Coupling_Constraints(IloModel& Model, IloEnv& env, IloExpr& ex_xi, IloExpr& ex_NG_emis, IloExpr& ex_E_emis);
 
 void Print_EV(IloCplex cplex, double obj, double gap, double Elapsed_time);
 void Print_GV(IloCplex cplex, double obj, double gap, double Elapsed_time);

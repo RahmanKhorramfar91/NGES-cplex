@@ -74,8 +74,8 @@ int main()
 	Setting::CPU_limit = 140;   // seconds
 	Setting::Emis_lim = 17e6;    // tons
 	Setting::RPS = 0.0;		    // out of 1 (=100%) Renewable Portfolio Share
-	Setting::Approach_1_active = false; // default = true
-	Setting::Approach_2_active = !Setting::Approach_1_active; // default = false
+	Setting::Approach_1_active = true; // default = true
+	Setting::Approach_2_active = true; // default = false
 
 #pragma endregion
 
@@ -134,29 +134,36 @@ int main()
 	double MidSol = 0;
 	// get upper and lower bound for xi by the first approach (Integrate Model)
 
-	double xiLB = 0; double xiUB = 0;
+	double xiLB1 = 0; double xiUB1 = 0;
 	if (Setting::Approach_1_active)
 	{
-		double total_cost = NGES_Model();
+		//double total_cost = NGES_Model();
 		Setting::xi_LB_obj = true; Setting::xi_UB_obj = false; Setting::print_NG_vars = false;
-		xiLB = NGES_Model();
+		xiLB1 = NGES_Model();
 
 		Setting::xi_LB_obj = false; Setting::xi_UB_obj = true; Setting::print_E_vars = false;
-		xiUB = NGES_Model();
+		xiUB1 = NGES_Model();
 	}
-	double ng_obj = 0;
-	double e_obj = 0;
+	double desp_obj = 0;
+	double dgsp_obj = 0; double xiLB2 = 0; double xiUB2 = 0;
 	if (Setting::Approach_2_active)
 	{
-		e_obj = DESP();
-		ng_obj = DGSP();	
-		Setting::DGSP_active = false; Setting::DESP_active = false;
-		Setting::xi_LB_obj = true; Setting::xi_UB_obj = false;
-		xiLB = XiBounds2();
+		//desp_obj = DESP();
+		//dgsp_obj = DGSP();
+
+		Setting::print_NG_vars = false;
+		xiLB2 = Xi_LB2();
+
+		Setting::print_NG_vars = false;
+		double aux_obj = AUX_UB();
+		xiUB2 = Xi_UB2(aux_obj);
 	}
 
 
-
+	std::cout << "xi LB1: " << xiLB1;
+	std::cout << "\t xi LB2: " << xiLB2 << endl;
+	std::cout << "xi UB1: " << xiUB1;
+	std::cout << "\t xi UB2: " << xiUB2 << endl;
 
 
 	//Electricy_Network_Model(int_vars_relaxed, print_vars);

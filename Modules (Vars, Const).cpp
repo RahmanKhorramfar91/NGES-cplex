@@ -994,7 +994,7 @@ void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj)
 
 }
 
-void Coupling_Constraints(IloModel& Model, IloEnv& env)
+void Coupling_Constraints(IloModel& Model, IloEnv& env, IloExpr& ex_xi, IloExpr& ex_NG_emis, IloExpr& ex_E_emis)
 {
 
 	CV::xi = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
@@ -1029,7 +1029,7 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env)
 
 
 #pragma region Coupling 1
-	IloExpr ex_xi(env);
+	//IloExpr ex_xi(env);
 	for (int k = 0; k < nGnode; k++)
 	{
 		for (int tau = 0; tau < Tg.size(); tau++)
@@ -1053,7 +1053,7 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env)
 			}
 		}
 	}
-	if (Setting::Approach_1_active)
+	/*if (Setting::Approach_1_active)
 	{
 		if (Setting::is_xi_given)
 		{
@@ -1064,27 +1064,28 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env)
 		{
 			Model.add(CV::xi == ex_xi);
 		}
-	}
-	if (Setting::Approach_2_active && !Setting::xi_LB_obj && !Setting::xi_UB_obj)
-	{
-		// xi must be given
-		Model.add(CV::xi == ex_xi);
-		Model.add(ex_xi == Setting::xi_val);
-	}
-	else if (Setting::Approach_2_active && Setting::xi_LB_obj)
-	{
-		Setting::xi_UB_obj = false;
-		// xi is a variable to be minimized
-		Model.add(CV::xi == ex_xi);
-	}
+	}*/
+	//if (Setting::Approach_2_active && !Setting::xi_LB_obj && !Setting::xi_UB_obj)
+	//{
+	//	// xi must be given
+	//	Model.add(CV::xi == ex_xi);
+	//	Model.add(ex_xi == Setting::xi_val);
+	//}
+	//else 
+	//if (Setting::Approach_2_active && Setting::xi_LB_obj)
+	//{
+	//	Setting::xi_UB_obj = false;
+	//	// xi is a variable to be minimized
+	//	Model.add(CV::xi == ex_xi);
+	//}
 
 #pragma endregion
 
 
 #pragma region Coupling 2
 
-	IloExpr ex_NG_emis(env);
-	IloExpr ex_E_emis(env);
+	//IloExpr ex_NG_emis(env);
+	//IloExpr ex_E_emis(env);
 
 	for (int k = 0; k < nGnode; k++)
 	{
@@ -1113,25 +1114,27 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env)
 			}
 		}
 	}
-	if (Setting::Approach_1_active)
+	/*if (Setting::Approach_1_active)
 	{
 		Model.add(ex_E_emis + ex_NG_emis <= Setting::Emis_lim);
 		Model.add(ex_E_emis == CV::E_emis);
 		Model.add(ex_NG_emis == CV::NG_emis);
-	}
+	}*/
 
 
 
-	if (Setting::Approach_2_active && Setting::DESP_active)
-	{
-		Setting::DGSP_active = false;
-		Model.add(ex_E_emis <= Setting::Emis_lim);
-		//Model.add(ex_NG_emis <= 2.6e6);
-		Model.add(ex_E_emis == CV::E_emis);
-		Model.add(CV::NG_emis);
-		Model.add(CV::E_emis);
-	}
-	else if (Setting::Approach_2_active && Setting::DGSP_active)
+	//if (Setting::Approach_2_active && Setting::DESP_active)
+	//{
+	//	Setting::DGSP_active = false;
+	//	Model.add(ex_E_emis <= Setting::Emis_lim);
+	//	//Model.add(ex_NG_emis <= 2.6e6);
+	//	Model.add(ex_E_emis == CV::E_emis);
+	//	Model.add(CV::NG_emis);
+	//	Model.add(CV::E_emis);
+	//}
+	//else
+		
+	/*	if (Setting::Approach_2_active && Setting::DGSP_active)
 	{
 		Setting::DESP_active = false;
 		double rhs = Setting::Emis_lim - CV::used_emis_cap;
@@ -1139,15 +1142,16 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env)
 		Model.add(ex_NG_emis <= rhs);
 		Model.add(CV::E_emis);
 		Model.add(ex_NG_emis == CV::NG_emis);
-	}
-	else if (Setting::Approach_2_active && Setting::xi_LB_obj)
+	}*/
+	
+	/*if (Setting::Approach_2_active && Setting::xi_LB_obj)
 	{
 		Setting::xi_UB_obj = false;
 		Model.add(ex_E_emis <= Setting::Emis_lim);
 		Model.add(ex_E_emis == CV::E_emis);
 		Model.add(CV::NG_emis);
 		Model.add(CV::E_emis);
-	}
+	}*/
 #pragma endregion
 
 }
