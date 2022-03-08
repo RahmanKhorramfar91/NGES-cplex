@@ -40,6 +40,8 @@ void Get_EV_vals(IloCplex cplex, double obj, double gap, double Elapsed_time)
 	EV::val_Emit_var = cplex.getValue(CV::E_emis);
 	EV::val_e_system_cost = cplex.getValue(EV::e_system_cost);
 
+	CV::val_E_emis = cplex.getValue(CV::E_emis);
+	CV::val_xi = cplex.getValue(CV::xi);
 
 
 	//fid << "Elapsed time: " << Elapsed_time << endl;
@@ -336,6 +338,10 @@ void Get_GV_vals(IloCplex cplex, double obj, double gap, double Elapsed_time)
 	GV::val_gStrFOM_cost = cplex.getValue(GV::gStrFOM_cost);
 	GV::val_ngShedd_cost = cplex.getValue(GV::gShedd_cost);
 	GV::val_rngShedd_cost = cplex.getValue(GV::rngShedd_cost);
+
+	CV::val_NG_emis = cplex.getValue(CV::NG_emis);
+
+
 	/*fid2 << "Elapsed time: " << Elapsed_time << endl;
 	fid2 << "\t Total cost for both networks:" << obj << endl;
 	fid2 << "\t NG Network Obj Value:" << cplex.getValue(GV::NG_system_cost) << endl;
@@ -502,6 +508,7 @@ void Get_GV_vals(IloCplex cplex, double obj, double gap, double Elapsed_time)
 	//}
 	//fid2.close();
 #pragma endregion
+
 }
 
 void Print_Results(double Elapsed_time)
@@ -536,7 +543,8 @@ void Print_Results(double Elapsed_time)
 		fid << "Storage_cap" << ",";
 		fid << "Total_curt" << ",";
 		fid << "Num_new_trans" << ",";
-		fid << "Total_flow" << ",,";
+		fid << "Total_flow" << ",";
+		fid << "E_emis" << ",,";
 
 		// natural gas
 		fid << "Total_E_cost" << ",";
@@ -553,7 +561,7 @@ void Print_Results(double Elapsed_time)
 		fid << "flowGE" << ",";
 		fid << "flowGL" << ",";
 		fid << "flowVG" << ",";
-
+		fid << "NG_emis" << ",";
 		// vector variables of both networks
 		fid << ",,";
 		fid << "num_est(nplt)" << ","; // vector of nplt
@@ -570,7 +578,7 @@ void Print_Results(double Elapsed_time)
 	fid << Setting::Approach_1_active << ",";
 	fid << Setting::Approach_2_active << ",";
 	fid << Setting::is_xi_given << ",";
-	fid << Setting::xi_val << ",";
+	fid << CV::val_xi << ",";
 	fid << Setting::Emis_lim << ",";
 	fid << Setting::RPS << ",";
 	fid << Setting::RNG_cap << ",";
@@ -587,8 +595,8 @@ void Print_Results(double Elapsed_time)
 	fid << EV::val_storage_cap << ",";
 	fid << EV::val_total_curt << ",";
 	fid << EV::val_num_est_trans << ",";
-	fid << EV::val_total_flow << ",,";
-
+	fid << EV::val_total_flow << ",";
+	fid << CV::val_E_emis << ",,";
 
 	// NG
 	fid << GV::val_NG_system_cost << ",";
@@ -605,6 +613,7 @@ void Print_Results(double Elapsed_time)
 	fid << GV::val_total_flowGE << ",";
 	fid << GV::val_total_flowGL << ",";
 	fid << GV::val_total_flowVG << ",";
+	fid << CV::val_NG_emis << ",";
 
 	fid << ",";
 	for (int i = 0; i < Params::Plants.size(); i++)
@@ -641,28 +650,28 @@ void Print_Results(double Elapsed_time)
 
 #pragma region Print in a text file
 	ofstream fid2;
-	fid2.open("Results.txt", std::ios::app);
+	fid2.open("NGES_Results.txt", std::ios::app);
 	// problem setting
-	fid << "\nNum_Rep_days" << Setting::Num_rep_days;
-	fid << "\t Approach 1" << Setting::Approach_1_active;
-	fid << "\tApproach 2" << Setting::Approach_2_active;
-	fid << "\txi_given" << Setting::is_xi_given;
-	fid << "\txi_val" << Setting::xi_val;
-	fid << "\tEmis_lim" << Setting::Emis_lim;
-	fid << "\tRPS" << Setting::RPS;
-	fid << "\tRNG_cap" << Setting::RNG_cap;
+	fid2 << "\nNum_Rep_days: " << Setting::Num_rep_days;
+	fid2 << "\t Approach 1: " << Setting::Approach_1_active;
+	fid2 << "\tApproach 2: " << Setting::Approach_2_active;
+	fid2 << "\txi_given: " << Setting::is_xi_given;
+	fid2 << "\txi_val: " << Setting::xi_val;
+	fid2 << "\tEmis_lim: " << Setting::Emis_lim;
+	fid2 << "\tRPS: " << Setting::RPS;
+	fid2 << "\tRNG_cap: " << Setting::RNG_cap;
+	
 
-	fid << "Elapsed time: " << Elapsed_time << endl;
-	fid << "\t Total cost for both networks:" << EV::val_e_system_cost + GV::val_NG_system_cost << endl;
-
-	fid << "\n \t Establishment Cost: " << EV::val_est_cost;
-	fid << "\n \t Decommissioning Cost: " << EV::val_decom_cost;
-	fid << "\n \t Fixed Cost: " << EV::val_fixed_cost;
-	fid << "\n \t Variable Cost: " << EV::val_var_cost;
-	fid << "\n \t (dfo, coal, and nuclear) Fuel Cost: " << EV::val_thermal_fuel_cost;
-	fid << "\n \t Load Shedding Cost: " << EV::val_shedding_cost;
-	fid << "\n \t Storage Cost: " << EV::val_elec_storage_cost << "\n";
-	//fid << "\t E Emission: " << CV::val_E_emis << "\n\n";
+	fid2 << "\n\t Elapsed time: " << Elapsed_time << endl;
+	fid2 << "\t Total cost for both networks:" << EV::val_e_system_cost + GV::val_NG_system_cost << endl;
+	fid2 << "\n \t Establishment Cost: " << EV::val_est_cost;
+	fid2 << "\n \t Decommissioning Cost: " << EV::val_decom_cost;
+	fid2 << "\n \t Fixed Cost: " << EV::val_fixed_cost;
+	fid2 << "\n \t Variable Cost: " << EV::val_var_cost;
+	fid2 << "\n \t (dfo, coal, and nuclear) Fuel Cost: " << EV::val_thermal_fuel_cost;
+	fid2 << "\n \t Load Shedding Cost: " << EV::val_shedding_cost;
+	fid2 << "\n \t Storage Cost: " << EV::val_elec_storage_cost;
+	fid2 << "\t E Emission: " << CV::val_E_emis << "\n";
 
 
 	fid2 << "\n\n\t NG Network Obj Value:" << GV::val_NG_system_cost << endl;
@@ -672,7 +681,9 @@ void Print_Results(double Elapsed_time)
 	fid2 << "\t NG Storage Cost: " << GV::val_gStrFOM_cost << endl;
 	fid2 << "\t NG Load NG Shedding Cost: " << GV::val_ngShedd_cost << endl;
 	fid2 << "\t NG Load RNG Shedding Cost: " << GV::val_rngShedd_cost << endl;
-	//fid2 << "\t NG Emission: " << CV::val_NG_emis << endl;
+	fid2 << "\t NG Emission: " << CV::val_NG_emis << endl;
+	fid2 << "\n\n\n";
+	fid2.close();
 #pragma endregion
 
 }

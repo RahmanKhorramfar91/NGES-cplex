@@ -158,4 +158,9 @@ struct CV
 
 
 	static double used_emis_cap; // eta value from the DGSP of the Approach 2
+
+	static double val_xi; // f
+	static double val_NG_emis;
+	static double val_E_emis;
+
 };

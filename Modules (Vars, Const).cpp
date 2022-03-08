@@ -95,6 +95,9 @@ IloNumVar CV::xi;
 IloNumVar CV::NG_emis;
 IloNumVar CV::E_emis;
 double CV::used_emis_cap;
+double CV::val_xi; // f
+double CV::val_NG_emis;
+double CV::val_E_emis;
 #pragma endregion
 
 
