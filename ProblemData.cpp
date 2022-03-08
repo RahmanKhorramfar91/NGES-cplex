@@ -11,17 +11,19 @@ vector<int> Params::Tg;
 vector<int> Params::Te;
 vector<int> Params::RepDaysCount;
 vector<int> Params::time_weight;
-float Params::WACC;
+double Params::WACC;
 int Params::trans_unit_cost;
 int Params::trans_line_lifespan;
-float Params::NG_price;
-float Params::dfo_pric;
-float Params::coal_price;
-float Params::nuclear_price;
-float Params::E_curt_cost;
-float Params::G_curt_cost;
-float Params::pipe_per_mile;
-float Params::NG_emis_rate;
+double Params::NG_price;
+double Params::dfo_pric;
+double Params::coal_price;
+double Params::nuclear_price;
+double Params::E_curt_cost;
+double Params::G_curt_cost;
+double Params::RNG_cap;
+double Params::RNG_price;
+double Params::pipe_per_mile;
+double Params::NG_emis_rate;
 int Params::pipe_lifespan;
 int Params::SVL_lifetime;
 int Params::battery_lifetime;
@@ -36,11 +38,11 @@ void Read_rep_days(string name, vector<int>& Rep, vector<int>& RepCount)
 	string line;
 	while (getline(fid, line))
 	{
-		float re, rc;
+		double re, rc;
 		std::istringstream iss(line);
 		iss >> re >> rc;
-		Rep.push_back(re);
-		RepCount.push_back(rc);
+		Rep.push_back((int)re);
+		RepCount.push_back((int)rc);
 	}
 }
 
@@ -54,7 +56,7 @@ vector<enode> enode::read_bus_data(string name)
 	while (getline(fid, line))
 	{
 		std::istringstream iss(line);
-		float bus_num;
+		double bus_num;
 		iss >> bus_num;
 		enode bs((int)bus_num);
 		Buses.push_back(bs);
@@ -83,7 +85,7 @@ void  enode::read_adj_data(string name, vector<enode>& Enodes)
 				{
 					break;
 				}
-				Enodes[j].adj_buses.push_back(std::stof(temp));
+				Enodes[j].adj_buses.push_back(std::stod(temp));
 
 				temp = "";
 			}
@@ -111,13 +113,13 @@ void enode::read_exist_plt_data(string FileName, vector<enode>& Enodes)
 	{
 		std::istringstream iss(line);
 		string type;
-		float bus_num, Pmax, Pmin, g1, g2, g3, count;
+		double bus_num, Pmax, Pmin, g1, g2, g3, count;
 		iss >> bus_num >> type >> Pmax >> Pmin >> g1 >> g2 >> g3 >> count;
 		int bn = (int)bus_num;
 		Enodes[bn].Init_plt_types.push_back(type);
 		int ind1 = sym2ind[type];
 		Enodes[bn].Init_plt_ind.push_back(ind1);
-		float* plim = new float[2]{ Pmin,Pmax };
+		double* plim = new double[2]{ Pmin,Pmax };
 		Enodes[bn].Init_plt_prod_lim.push_back(plim);
 		Enodes[bn].Init_plt_count.push_back((int)count);
 	}
@@ -157,13 +159,13 @@ vector<plant> plant::read_new_plant_data(string name)
 	string line;
 	while (getline(fid, line))
 	{
-		//	string t, int n, int ise, int cap, int f, int v, float emi, float hr, int lt, int dec,
-			//	float pmax, float ru, float rd, int emic
+		//	string t, int n, int ise, int cap, int f, int v, double emi, double hr, int lt, int dec,
+			//	double pmax, double ru, double rd, int emic
 		std::istringstream iss(line);
-		float n, ise, cap, f, v, emi, hr, lt, dec, pmax, pmin, ru, rd, emic, numM;
-		//float  n, capex,pmax, pmin,ru,rd, fix_cost, var_cost, decom_cost, emis_cost, lifespan;
+		double n, ise, cap, f, v, emi, hr, lt, dec, pmax, pmin, ru, rd, emic, numM;
+		//double  n, capex,pmax, pmin,ru,rd, fix_cost, var_cost, decom_cost, emis_cost, lifespan;
 		string type;
-		float h, emis_rate;
+		double h, emis_rate;
 		iss >> type >> n >> ise >> cap >> f >> v >> emi >> hr >> lt >> dec >> pmax >> pmin >> ru >> rd >> emic >> numM;
 		//iss >> type >> n >> capex >>pmax>>pmin>>ru>>rd>> fix_cost >> var_cost >> h >> emis_rate >> decom_cost >> emis_cost >> lifespan;
 		plant np(type, (int)n, (int)ise, (int)cap, (int)f, (int)v, emi, hr, (int)lt, (int)dec, pmax, pmin, ru, rd, (int)emic, (int)numM);
@@ -181,7 +183,7 @@ vector<eStore> eStore::read_elec_storage_data(string name)
 	while (getline(fid, line))
 	{
 		std::istringstream iss(line);
-		float en, pow, ch, dis,fom;
+		double en, pow, ch, dis,fom;
 		iss >> en >> pow >> ch >> dis>>fom;
 		eStore str((int)en, (int)pow, ch, dis,fom);
 		Estorage.push_back(str);
@@ -204,7 +206,7 @@ void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant>& 
 	while (getline(fid1, line))
 	{
 		std::istringstream iss(line);
-		float pp;
+		double pp;
 		iss >> pp;
 		Plants[sym2pltType["hydro"]].prod_profile.push_back(pp);
 		Plants[sym2pltType["hydro-new"]].prod_profile.push_back(pp);
@@ -213,7 +215,7 @@ void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant>& 
 	while (getline(fid2, line))
 	{
 		std::istringstream iss(line);
-		float pp;
+		double pp;
 		iss >> pp;
 		Plants[sym2pltType["wind"]].prod_profile.push_back(pp);
 		Plants[sym2pltType["wind-new"]].prod_profile.push_back(pp);
@@ -221,7 +223,7 @@ void plant::read_VRE_profile(string FN1, string FN2, string FN3, vector<plant>& 
 	while (getline(fid3, line))
 	{
 		std::istringstream iss(line);
-		float pp;
+		double pp;
 		iss >> pp;
 		Plants[sym2pltType["solar"]].prod_profile.push_back(pp);
 		Plants[sym2pltType["solar-UPV"]].prod_profile.push_back(pp);
@@ -260,14 +262,14 @@ vector<branch> branch::read_branch_data(int nBus, string FN,
 		std::istringstream iss3(line3);
 		std::istringstream iss4(line4);
 
-		float sn;
+		double sn;
 		iss >> sn;
 		if ((int)sn == 0) { continue; }
 
 
 		for (int j = 0; j < (int)sn; j++)
 		{
-			float s0, s1, s2, s3, s4;
+			double s0, s1, s2, s3, s4;
 			iss0 >> s0;
 			iss1 >> s1;
 			iss2 >> s2;
@@ -297,13 +299,13 @@ vector<gnode> gnode::read_gnode_data(string name)
 	string line;
 	while (getline(fid2, line))
 	{
-		float num, fips, outDem, capU, svl1, svl2;
+		double num, fips, outDem, capU, svl1, svl2;
 		std::istringstream iss(line);
 
 		iss >> num >> fips >> outDem >> capU >> svl1 >> svl2;
 		vector<int> svls;
-		svls.push_back(svl1);
-		svls.push_back(svl2);
+		svls.push_back((int)svl1);
+		svls.push_back((int)svl2);
 		gnode gn((int)num, (int)fips, (int)outDem, (int)capU, svls);
 		Gnodes.push_back(gn);
 	}
@@ -320,10 +322,10 @@ vector<exist_gSVL> exist_gSVL::read_exist_SVL_data(string name)
 	int count = 0;
 	while (getline(fid, line))
 	{
-		float  a, b, c;
+		double  a, b, c;
 		std::istringstream iss(line);
 		iss >> a >> b >> c;
-		exist_gSVL esvl(count, a, b, c);
+		exist_gSVL esvl(count, (int)a, (int)b, (int)c);
 		Exist_SVL.push_back(esvl);
 		count++;
 	}
@@ -340,7 +342,7 @@ vector<SVL> SVL::read_SVL_data(string name)
 	int count = 0;
 	while (getline(fid, line))
 	{
-		float  a, b, c, d;
+		double  a, b, c, d;
 		std::istringstream iss(line);
 		iss >> a >> b >> c >> d;
 		SVL svl((int)a, (int)b, c, d);
@@ -463,7 +465,7 @@ vector<pipe> pipe::read_pipe_data(string name, map<int, vector<int>>& Lg)
 	int lc = 0;
 	while (getline(fid2, line))
 	{
-		float f, t, exi, le, ca;
+		double f, t, exi, le, ca;
 		std::istringstream iss(line);
 		iss >> f >> t >> exi >> le >> ca;
 		pipe p2((int)f, (int)t, (int)exi, le, ca);
@@ -478,13 +480,13 @@ vector<pipe> pipe::read_pipe_data(string name, map<int, vector<int>>& Lg)
 
 void gnode::read_ng_demand_data(string name, vector<gnode>& Gnodes)
 {
-	int nGnode = Gnodes.size();
+	int nGnode = (int)Gnodes.size();
 
 	ifstream fid2(name);
 	string line;
 	while (getline(fid2, line))
 	{
-		float dem2;
+		double dem2;
 		std::istringstream iss(line);
 		for (int i = 0; i < nGnode; i++)
 		{
@@ -503,7 +505,7 @@ void Read_Data()
 	vector<int> RepDaysCount;
 	Read_rep_days(Rep_name, RepDays, RepDaysCount);
 
-	const int nRepDays = RepDays.size();
+	const int nRepDays = (int)RepDays.size();
 	int PP = 24 * nRepDays;  // hours of planning for electricity network
 	vector<int> Te;
 	vector<int> time_weight;
@@ -533,7 +535,7 @@ void Read_Data()
 	vector<exist_gSVL> Exist_SVL = exist_gSVL::read_exist_SVL_data("ng_exist_SVL.txt");
 	vector<SVL> SVLs = SVL::read_SVL_data("SVL_data.txt");
 	vector<pipe> PipeLines = pipe::read_pipe_data("g2g_br.txt", Lg);
-	int nGnode = Gnodes.size();
+	int nGnode = (int)Gnodes.size();
 
 	// Read Electricity Data
 	// better to use std::unordered_map which is more efficient and faster
@@ -543,7 +545,7 @@ void Read_Data()
 	enode::read_adj_data("bus_adj_Nodes.txt", Enodes);
 	enode::read_exist_plt_data("existing_plants.txt", Enodes);
 	enode::read_demand_data("elec_dem_per_zone_per_hour.txt", Enodes);
-	int nEnode = Enodes.size();
+	int nEnode = (int)Enodes.size();
 
 	vector<plant> Plants = plant::read_new_plant_data("plant_data.txt");
 	plant::read_VRE_profile("profile_hydro_hourly.txt",

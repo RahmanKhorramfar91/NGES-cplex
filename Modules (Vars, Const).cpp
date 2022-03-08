@@ -1,5 +1,5 @@
 #include"Models_Funcs.h"
-#include "ilcplex/ilocplex.h";
+#include "ilcplex/ilocplex.h"
 typedef IloArray<IloNumVarArray> NumVar2D; // to define 2-D decision variables
 typedef IloArray<NumVar2D> NumVar3D;  // to define 3-D decision variables
 typedef IloArray<NumVar3D> NumVar4D;  // to define 4-D decision variables
@@ -28,6 +28,24 @@ IloNumVar EV::shedding_cost;
 IloNumVar EV::elec_storage_cost;
 IloNumVar EV::Emit_var;
 IloNumVar EV::e_system_cost;
+double EV::val_est_cost;
+double EV::val_decom_cost;
+double EV::val_fixed_cost;
+double EV::val_var_cost;
+double EV::val_thermal_fuel_cost;
+double EV::val_shedding_cost;
+double EV::val_elec_storage_cost;
+double EV::val_Emit_var;
+double EV::val_e_system_cost;
+double EV::val_num_storage; // number of storage facilities established
+double EV::val_storage_lev; // value of toal storage capacity (MWh)
+double EV::val_storage_cap; // value of toal storage capacity (MW)
+double* EV::val_num_est = new double[Params::Plants.size()]();// number of established plants
+double* EV::val_num_decom = new double[Params::Plants.size()](); // number of plants decommissioned
+double  EV::val_total_curt; // total load shedding
+double  EV::val_num_est_trans; // number of new transmission lines established
+double  EV::val_total_flow; // total flow in the E network
+double* EV::val_total_prod = new double[Params::Plants.size()](); // total production	
 
 #pragma endregion
 
@@ -39,6 +57,7 @@ NumVar2D GV::Svpr;
 NumVar2D GV::Sliq;
 NumVar2D GV::supply;
 NumVar2D GV::curtG;
+NumVar2D GV::curtRNG;
 NumVar2D GV::flowGG;
 NumVar3D GV::flowGE;
 NumVar3D GV::flowGL;
@@ -47,16 +66,35 @@ IloNumVarArray GV::Zg;
 IloNumVar GV::strInv_cost;
 IloNumVar GV::pipe_cost;
 IloNumVar GV::gShedd_cost;
+IloNumVar GV::rngShedd_cost;
 IloNumVar GV::gStrFOM_cost;
 IloNumVar GV::NG_import_cost;
 IloNumVar GV::NG_system_cost;
+
+double GV::val_strInv_cost;
+double GV::val_pipe_cost;
+double GV::val_ngShedd_cost;
+double GV::val_rngShedd_cost;
+double GV::val_gStrFOM_cost;
+double GV::val_NG_import_cost;
+double GV::val_NG_system_cost;
+double* GV::val_supply;
+double GV::val_ng_curt;
+double GV::val_rng_curt;
+int GV::val_num_est_pipe;
+double GV::val_total_flowGG;
+double GV::val_total_flowGE;
+double GV::val_total_flowGL;
+double GV::val_total_flowVG;
+double* GV::val_storage;
+double* GV::val_vapor;
 #pragma endregion
 
 #pragma region Coupling struct (CV)
 IloNumVar CV::xi;
 IloNumVar CV::NG_emis;
 IloNumVar CV::E_emis;
-float CV::used_emis_cap;
+double CV::used_emis_cap;
 #pragma endregion
 
 
@@ -70,24 +108,24 @@ void Populate_EV(IloModel& Model, IloEnv& env)
 	vector<plant> Plants = Params::Plants;
 	vector<eStore> Estorage = Params::Estorage;
 	vector<branch> Branches = Params::Branches;
-	int nEnode = Enodes.size();
-	int nPlt = Plants.size();
-	int nBr = Branches.size();
-	int neSt = Estorage.size();
+	int nEnode = (int)Enodes.size();
+	int nPlt = (int)Plants.size();
+	int nBr = (int)Branches.size();
+	int neSt = (int)Estorage.size();
 	vector<int> Tg = Params::Tg;
 	vector<int> Te = Params::Te;
 	vector<int> time_weight = Params::time_weight;
-	float pi = 3.1415926535897;
-	int nGnode = Gnodes.size();
-	float WACC = Params::WACC;
+	double pi = 3.1415926535897;
+	int nGnode = (int)Gnodes.size();
+	double WACC = Params::WACC;
 	int trans_unit_cost = Params::trans_unit_cost;
 	int trans_line_lifespan = Params::trans_line_lifespan;
-	float NG_price = Params::NG_price;
-	float dfo_pric = Params::dfo_pric;
-	float coal_price = Params::coal_price;
-	float E_curt_cost = Params::E_curt_cost;
-	float G_curt_cost = Params::G_curt_cost;
-	float pipe_per_mile = Params::pipe_per_mile;
+	double NG_price = Params::NG_price;
+	double dfo_pric = Params::dfo_pric;
+	double coal_price = Params::coal_price;
+	double E_curt_cost = Params::E_curt_cost;
+	double G_curt_cost = Params::G_curt_cost;
+	double pipe_per_mile = Params::pipe_per_mile;
 	int pipe_lifespan = Params::pipe_lifespan;
 	map<int, vector<int>> Le = Params::Le;
 	vector<int> RepDaysCount = Params::RepDaysCount;
@@ -221,25 +259,25 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 	vector<plant> Plants = Params::Plants;
 	vector<eStore> Estorage = Params::Estorage;
 	vector<branch> Branches = Params::Branches;
-	int nEnode = Enodes.size();
-	int nPlt = Plants.size();
-	int nBr = Branches.size();
-	int neSt = Estorage.size();
+	int nEnode = (int)Enodes.size();
+	int nPlt = (int)Plants.size();
+	int nBr = (int)Branches.size();
+	int neSt = (int)Estorage.size();
 	vector<int> Tg = Params::Tg;
 	vector<int> Te = Params::Te;
 	vector<int> time_weight = Params::time_weight;
-	float pi = 3.1415926535897;
-	int nGnode = Gnodes.size();
-	float WACC = Params::WACC;
+	double pi = 3.141592;
+	int nGnode = (int)Gnodes.size();
+	double WACC = Params::WACC;
 	int trans_unit_cost = Params::trans_unit_cost;
 	int trans_line_lifespan = Params::trans_line_lifespan;
-	float NG_price = Params::NG_price;
-	float dfo_pric = Params::dfo_pric;
-	float coal_price = Params::coal_price;
-	float nuclear_price = Params::nuclear_price;
-	float E_curt_cost = Params::E_curt_cost;
-	float G_curt_cost = Params::G_curt_cost;
-	float pipe_per_mile = Params::pipe_per_mile;
+	double NG_price = Params::NG_price;
+	double dfo_pric = Params::dfo_pric;
+	double coal_price = Params::coal_price;
+	double nuclear_price = Params::nuclear_price;
+	double E_curt_cost = Params::E_curt_cost;
+	double G_curt_cost = Params::G_curt_cost;
+	double pipe_per_mile = Params::pipe_per_mile;
 	int pipe_lifespan = Params::pipe_lifespan;
 	int battery_lifetime = Params::battery_lifetime;
 	map<int, vector<int>> Le = Params::Le;
@@ -291,8 +329,8 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 		for (int i = 0; i < nPlt; i++)
 		{
 			// Investment/decommission cost of plants
-			float s1 = std::pow(1.0 / (1 + WACC), Plants[i].lifetime);
-			float capco = WACC / (1 - s1);
+			double s1 = (double)std::pow(1.0 / (1 + WACC), Plants[i].lifetime);
+			double capco = WACC / (1 - s1);
 			ex_est += capco * Plants[i].capex * EV::Xest[n][i];
 			ex_decom += Plants[i].decom_cost * EV::Xdec[n][i];
 		}
@@ -334,8 +372,8 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 		// storage cost
 		for (int r = 0; r < neSt; r++)
 		{
-			float s1 = std::pow(1.0 / (1 + WACC), battery_lifetime);
-			float capco = WACC / (1 - s1);
+			double s1 = (double)std::pow(1.0 / (1 + WACC), battery_lifetime);
+			double capco = WACC / (1 - s1);
 			ex_elec_str += capco * Estorage[r].power_cost * EV::YeCD[n][r] + capco * Estorage[r].energy_cost * EV::YeLev[n][r];
 			ex_elec_str += Estorage[r].FOM * EV::YeStr[n][r]; // fixed cost per kw per year
 		}
@@ -344,8 +382,8 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 	// investment cost of transmission lines
 	for (int b = 0; b < Branches.size(); b++)
 	{
-		float s1 = std::pow(1.0 / (1 + WACC), trans_line_lifespan);
-		float capco = WACC / (1 - s1);
+		double s1 = (double)std::pow(1.0 / (1 + WACC), trans_line_lifespan);
+		double capco = WACC / (1 - s1);
 		int fb = Branches[b].from_bus;
 		int tb = Branches[b].to_bus;
 		// find the index of tb in the adj_buses of the fb
@@ -482,7 +520,7 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 			{
 				ex_store += EV::eSdis[n][t][r] - EV::eSch[n][t][r];
 			}
-			float dem = Enodes[n].demand[Te[t]];
+			double dem = Enodes[n].demand[Te[t]];
 			//Model.add(exp1 + EV::curtE[n][t] == dem); // ignore transmission
 			//Model.add(exp_prod + ex_store + EV::curtE[n][t] == dem); const_size++;
 			Model.add(exp_prod + exp_trans + ex_store + EV::curtE[n][t] == dem); const_size++;
@@ -555,7 +593,7 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 	{
 		for (int t = 0; t < Te.size(); t++)
 		{
-			float dem = Enodes[n].demand[Te[t]];
+			double dem = Enodes[n].demand[Te[t]];
 			Model.add(EV::curtE[n][t] <= dem); const_size++;
 		}
 	}
@@ -563,7 +601,7 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 	//C12: RPS constraints
 	//IloExpr exp2(env);
 	IloExpr exp3(env);
-	float total_demand = 0;
+	double total_demand = 0;
 	for (int n = 0; n < nEnode; n++)
 	{
 		for (int t = 0; t < Te.size(); t++)
@@ -643,28 +681,28 @@ void Populate_GV(IloModel& Model, IloEnv& env)
 	vector<plant> Plants = Params::Plants;
 	vector<eStore> Estorage = Params::Estorage;
 	vector<exist_gSVL> Exist_SVL = Params::Exist_SVL;
-	int nSVL = Exist_SVL.size();
+	int nSVL = (int)Exist_SVL.size();
 	vector<SVL> SVLs = Params::SVLs;
 	vector<branch> Branches = Params::Branches;
-	int nEnode = Enodes.size();
-	int nPlt = Plants.size();
-	int nBr = Branches.size();
-	int neSt = Estorage.size();
-	int nPipe = PipeLines.size();
+	int nEnode = (int)Enodes.size();
+	int nPlt = (int)Plants.size();
+	int nBr = (int)Branches.size();
+	int neSt = (int)Estorage.size();
+	int nPipe = (int)PipeLines.size();
 	vector<int> Tg = Params::Tg;
 	//vector<int> Te = Params::Te;
 	vector<int> time_weight = Params::time_weight;
-	float pi = 3.1415926535897;
-	int nGnode = Gnodes.size();
-	float WACC = Params::WACC;
+	double pi = 3.1415926535897;
+	int nGnode = (int)Gnodes.size();
+	double WACC = Params::WACC;
 	int trans_unit_cost = Params::trans_unit_cost;
 	int trans_line_lifespan = Params::trans_line_lifespan;
-	float NG_price = Params::NG_price;
-	float dfo_pric = Params::dfo_pric;
-	float coal_price = Params::coal_price;
-	float E_curt_cost = Params::E_curt_cost;
-	float G_curt_cost = Params::G_curt_cost;
-	float pipe_per_mile = Params::pipe_per_mile;
+	double NG_price = Params::NG_price;
+	double dfo_pric = Params::dfo_pric;
+	double coal_price = Params::coal_price;
+	double E_curt_cost = Params::E_curt_cost;
+	double G_curt_cost = Params::G_curt_cost;
+	double pipe_per_mile = Params::pipe_per_mile;
 	int pipe_lifespan = Params::pipe_lifespan;
 	map<int, vector<int>> Le = Params::Le;
 	map<int, vector<int>> Lg = Params::Lg;
@@ -682,6 +720,7 @@ void Populate_GV(IloModel& Model, IloEnv& env)
 	GV::Sliq = NumVar2D(env, nSVL);
 	GV::supply = NumVar2D(env, nGnode);
 	GV::curtG = NumVar2D(env, nGnode);
+	GV::curtRNG = NumVar2D(env, nGnode);
 	GV::flowGG = NumVar2D(env, nPipe);
 	GV::flowGE = NumVar3D(env, nGnode);
 	GV::flowGL = NumVar3D(env, nGnode);
@@ -690,6 +729,7 @@ void Populate_GV(IloModel& Model, IloEnv& env)
 	GV::strInv_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
 	GV::pipe_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
 	GV::gShedd_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
+	GV::rngShedd_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
 	GV::gStrFOM_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
 	GV::NG_import_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
 	GV::NG_system_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
@@ -716,6 +756,7 @@ void Populate_GV(IloModel& Model, IloEnv& env)
 	{
 		GV::supply[k] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
 		GV::curtG[k] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
+		GV::curtRNG[k] = IloNumVarArray(env, Tg.size(), 0, IloInfinity, ILOFLOAT);
 		GV::flowGE[k] = NumVar2D(env, nEnode);
 		GV::flowGL[k] = NumVar2D(env, nSVL);
 		for (int j = 0; j < nSVL; j++)
@@ -742,29 +783,29 @@ void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj)
 	vector<plant> Plants = Params::Plants;
 	vector<eStore> Estorage = Params::Estorage;
 	vector<exist_gSVL> Exist_SVL = Params::Exist_SVL;
-	int nSVL = Exist_SVL.size();
+	int nSVL = (int)Exist_SVL.size();
 	vector<SVL> SVLs = Params::SVLs;
 	vector<branch> Branches = Params::Branches;
-	int nEnode = Enodes.size();
-	int nPlt = Plants.size();
-	int nBr = Branches.size();
-	int neSt = Estorage.size();
-	int nPipe = PipeLines.size();
+	int nEnode = (int)Enodes.size();
+	int nPlt = (int)Plants.size();
+	int nBr = (int)Branches.size();
+	int neSt = (int)Estorage.size();
+	int nPipe = (int)PipeLines.size();
 	vector<int> Tg = Params::Tg;
 	//vector<int> Te = Params::Te;
 	vector<int> time_weight = Params::time_weight;
-	float pi = 3.1415926535897;
-	int nGnode = Gnodes.size();
-	float WACC = Params::WACC;
+	double pi = 3.14159;
+	int nGnode = (int)Gnodes.size();
+	double WACC = Params::WACC;
 	int trans_unit_cost = Params::trans_unit_cost;
 	int trans_line_lifespan = Params::trans_line_lifespan;
 	int SVL_lifetime = Params::SVL_lifetime;
-	float NG_price = Params::NG_price;
-	float dfo_pric = Params::dfo_pric;
-	float coal_price = Params::coal_price;
-	float E_curt_cost = Params::E_curt_cost;
-	float G_curt_cost = Params::G_curt_cost;
-	float pipe_per_mile = Params::pipe_per_mile;
+	double NG_price = Params::NG_price;
+	double dfo_pric = Params::dfo_pric;
+	double coal_price = Params::coal_price;
+	double E_curt_cost = Params::E_curt_cost;
+	double G_curt_cost = Params::G_curt_cost;
+	double pipe_per_mile = Params::pipe_per_mile;
 	int pipe_lifespan = Params::pipe_lifespan;
 	map<int, vector<int>> Le = Params::Le;
 	map<int, vector<int>> Lg = Params::Lg;
@@ -777,15 +818,16 @@ void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj)
 	IloExpr exp_NG_import_cost(env);
 	IloExpr exp_invG(env);
 	IloExpr exp_pipe(env);
-	IloExpr exp_curt(env);
+	IloExpr exp_ng_curt(env);
+	IloExpr exp_rng_curt(env);
 	IloExpr exp_StrFOM(env);
 
 	// cost of establishing new inter-network pipelines
 	for (int i = 0; i < nPipe; i++)
 	{
-		float s1 = std::pow(1.0 / (1 + WACC), pipe_lifespan);
-		float capco = WACC / (1 - s1);
-		float cost1 = PipeLines[i].length * pipe_per_mile;
+		double s1 = std::pow(1.0 / (1 + WACC), pipe_lifespan);
+		double capco = WACC / (1 - s1);
+		double cost1 = PipeLines[i].length * pipe_per_mile;
 
 		exp_pipe += capco * cost1 * GV::Zg[i];
 	}
@@ -802,8 +844,8 @@ void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj)
 	// storage investment cost
 	for (int j = 0; j < nSVL; j++)
 	{
-		float s1 = std::pow(1.0 / (1 + WACC), SVL_lifetime);
-		float capco = WACC / (1 - s1);
+		double s1 = (double)std::pow(1.0 / (1 + WACC), SVL_lifetime);
+		double capco = WACC / (1 - s1);
 		exp_invG += capco * (SVLs[0].Capex * GV::Xstr[j] + SVLs[1].Capex * GV::Xvpr[j]);
 	}
 
@@ -819,16 +861,18 @@ void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj)
 	{
 		for (int tau = 0; tau < Tg.size(); tau++)
 		{
-			exp_curt += RepDaysCount[tau] * G_curt_cost * GV::curtG[k][tau];
+			exp_ng_curt += RepDaysCount[tau] * G_curt_cost * GV::curtG[k][tau];
+			exp_rng_curt += RepDaysCount[tau] * Params::RNG_price * GV::curtRNG[k][tau];
 		}
 	}
 
 
-	exp_GVobj += exp_NG_import_cost + exp_invG + exp_pipe + exp_curt + exp_StrFOM;
+	exp_GVobj += exp_NG_import_cost + exp_invG + exp_pipe + exp_ng_curt + exp_rng_curt + exp_StrFOM;
 
 	Model.add(GV::strInv_cost == exp_invG);
 	Model.add(GV::pipe_cost == exp_pipe);
-	Model.add(GV::gShedd_cost == exp_curt);
+	Model.add(GV::gShedd_cost == exp_ng_curt);
+	Model.add(GV::rngShedd_cost == exp_rng_curt);
 	Model.add(GV::gStrFOM_cost == exp_StrFOM);
 	Model.add(GV::NG_import_cost == exp_NG_import_cost);
 	Model.add(GV::NG_system_cost == exp_GVobj);
@@ -876,14 +920,16 @@ void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj)
 				exp_store += GV::flowVG[j][k][tau] - GV::flowGL[k][j][tau];
 			}
 
-			//Model.add(exp_ge_flow == 0);
+			IloExpr exp_curt(env);
+			exp_curt = GV::curtG[k][tau] + GV::curtRNG[k][tau];
 			//Model.add(GV::supply[k][tau] + exp_gg_flow - exp_store + GV::curtG[k][tau] == Gnodes[k].demG[Tg[tau]] + Gnodes[k].out_dem);
-			Model.add(GV::supply[k][tau] - exp_gg_exp + exp_gg_imp - exp_ge_flow + exp_store + GV::curtG[k][tau] == Gnodes[k].demG[Tg[tau]]);
+			Model.add(GV::supply[k][tau] - exp_gg_exp + exp_gg_imp - exp_ge_flow + exp_store + exp_curt == Gnodes[k].demG[Tg[tau]]);
 		}
 	}
 
 
 	// C3,C4: injection (supply) limit and curtailment limit
+	IloExpr exp_RNG(env);
 	for (int k = 0; k < nGnode; k++)
 	{
 		for (int tau = 0; tau < Tg.size(); tau++)
@@ -892,8 +938,10 @@ void NG_Model(IloModel& Model, IloEnv& env, IloExpr& exp_GVobj)
 			Model.add(GV::supply[k][tau] <= Gnodes[k].injU);
 
 			Model.add(GV::curtG[k][tau] <= Gnodes[k].demG[Tg[tau]]);
+			exp_RNG += GV::curtRNG[k][tau];
 		}
 	}
+	Model.add(exp_RNG <= Params::RNG_cap);
 
 	//C5: storage balance
 	for (int j = 0; j < nSVL; j++)
@@ -1011,20 +1059,20 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env, IloExpr& ex_xi, IloExpr&
 	//int nSVL = Exist_SVL.size();
 	vector<SVL> SVLs = Params::SVLs;
 	vector<branch> Branches = Params::Branches;
-	int nEnode = Enodes.size();
-	int nPlt = Plants.size();
-	int nBr = Branches.size();
+	int nEnode = (int)Enodes.size();
+	int nPlt = (int)Plants.size();
+	int nBr = (int)Branches.size();
 	//int neSt = Estorage.size();
 	//int nPipe = PipeLines.size();
 	vector<int> Tg = Params::Tg;
 	vector<int> Te = Params::Te;
 	vector<int> time_weight = Params::time_weight;
-	//float pi = 3.1415926535897;
-	int nGnode = Gnodes.size();
+	//double pi = 3.1415926535897;
+	int nGnode = (int)Gnodes.size();
 	map<int, vector<int>> Le = Params::Le;
 	map<int, vector<int>> Lg = Params::Lg;
 	vector<int> RepDaysCount = Params::RepDaysCount;
-	float NG_emis_rate = Params::NG_emis_rate;
+	double NG_emis_rate = Params::NG_emis_rate;
 #pragma endregion
 
 
@@ -1133,7 +1181,7 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env, IloExpr& ex_xi, IloExpr&
 	//	Model.add(CV::E_emis);
 	//}
 	//else
-		
+
 	/*	if (Setting::Approach_2_active && Setting::DGSP_active)
 	{
 		Setting::DESP_active = false;
@@ -1143,7 +1191,7 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env, IloExpr& ex_xi, IloExpr&
 		Model.add(CV::E_emis);
 		Model.add(ex_NG_emis == CV::NG_emis);
 	}*/
-	
+
 	/*if (Setting::Approach_2_active && Setting::xi_LB_obj)
 	{
 		Setting::xi_UB_obj = false;

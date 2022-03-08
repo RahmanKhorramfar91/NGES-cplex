@@ -1,5 +1,5 @@
 #include"Models_Funcs.h"
-#include "ilcplex/ilocplex.h";
+#include "ilcplex/ilocplex.h"
 typedef IloArray<IloNumVarArray> NumVar2D; // to define 2-D decision variables
 typedef IloArray<NumVar2D> NumVar3D;  // to define 3-D decision variables
 typedef IloArray<NumVar3D> NumVar4D;  // to define 4-D decision variables
@@ -57,10 +57,10 @@ void Electricy_Network_Model()
 		throw(-1);
 	}
 
-	float obj_val = cplex.getObjValue();
-	float gap = cplex.getMIPRelativeGap();
+	double obj_val = cplex.getObjValue();
+	double gap = cplex.getMIPRelativeGap();
 	auto end = chrono::high_resolution_clock::now();
-	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	double Elapsed = (double)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
@@ -70,7 +70,7 @@ void Electricy_Network_Model()
 
 	if (Setting::print_E_vars)
 	{
-		Print_EV(cplex, obj_val, gap, Elapsed);
+		Get_EV_vals(cplex, obj_val, gap, Elapsed);
 	}
 }
 
@@ -108,10 +108,10 @@ void NG_Network_Model()
 		throw(-1);
 	}
 
-	float obj_val = cplex.getObjValue();
-	float gap = cplex.getMIPRelativeGap();
+	double obj_val = cplex.getObjValue();
+	double gap = cplex.getMIPRelativeGap();
 	auto end = chrono::high_resolution_clock::now();
-	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	double Elapsed = (double)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
@@ -120,7 +120,7 @@ void NG_Network_Model()
 
 	if (Setting::print_NG_vars)
 	{
-		Print_GV(cplex, obj_val, gap, Elapsed);
+		Get_GV_vals(cplex, obj_val, gap, Elapsed);
 	}
 
 }
@@ -147,11 +147,13 @@ double NGES_Model()
 	Coupling_Constraints(Model, env, ex_xi, ex_NG_emis, ex_E_emis);
 	if (Setting::is_xi_given)
 	{
+		cout << "\n\n if xi given" << endl;
 		Model.add(ex_xi == Setting::xi_val);
 		Model.add(CV::xi == ex_xi);
 	}
 	else
 	{
+		cout << "else xi given" << endl;
 		Model.add(CV::xi == ex_xi);
 	}
 	Model.add(ex_E_emis + ex_NG_emis <= Setting::Emis_lim);
@@ -177,27 +179,17 @@ double NGES_Model()
 #pragma region Solve the model
 	IloCplex cplex(Model);
 	cplex.setParam(IloCplex::TiLim, Setting::CPU_limit);
-	cplex.setParam(IloCplex::EpGap, Setting::cplex_gap); // 0.1%
-	//cplex.exportModel("MA_LP.lp");
-
-	//cplex.setOut(env.getNullStream());
-
-	//cplex.setParam(IloCplex::Param::MIP::Strategy::Branch, 1); //Up/down branch selected first (1,-1),  default:automatic (0)
-	//cplex.setParam(IloCplex::Param::MIP::Strategy::BBInterval, 7);// 0 to 7
-	//cplex.setParam(IloCplex::Param::MIP::Strategy::NodeSelect, 2);
-	//https://www.ibm.com/support/knowledgecenter/SSSA5P_12.9.0/ilog.odms.cplex.help/CPLEX/UsrMan/topics/discr_optim/mip/performance/20_node_seln.html
-	//cplex.setParam(IloCplex::Param::MIP::Strategy::VariableSelect, 4);//-1 to 4
-	//cplex.setParam(IloCplex::Param::RootAlgorithm, 4); /000 to 6
+	cplex.setParam(IloCplex::EpGap, Setting::cplex_gap); // 0.1%	
 	if (!cplex.solve()) {
-		env.error() << "Failed to optimize!!!" << endl;
+		cout << "Failed to optimize!!!" << endl;
 		std::cout << cplex.getStatus();
 		throw(-1);
 	}
 
-	float obj_val = cplex.getObjValue();
-	float gap = cplex.getMIPRelativeGap();
+	double obj_val = cplex.getObjValue();
+	double gap = cplex.getMIPRelativeGap();
 	auto end = chrono::high_resolution_clock::now();
-	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	double Elapsed = (double)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
@@ -206,16 +198,14 @@ double NGES_Model()
 	std::cout << "\t E emission = " << cplex.getValue(CV::E_emis) << endl;
 #pragma endregion
 
-	if (Setting::print_NG_vars)
-	{
-		Print_GV(cplex, obj_val, gap, Elapsed);
-	}
-	if (Setting::print_E_vars)
-	{
-		Print_EV(cplex, obj_val, gap, Elapsed);
 
-	}
+	Get_GV_vals(cplex, obj_val, gap, Elapsed);
+	Get_EV_vals(cplex, obj_val, gap, Elapsed);
 
+
+
+
+	Print_Results(Elapsed);
 	return obj_val;
 
 }
@@ -260,10 +250,10 @@ double DESP()
 		throw(-1);
 	}
 
-	float obj_val = cplex.getObjValue();
-	float gap = cplex.getMIPRelativeGap();
+	double obj_val = cplex.getObjValue();
+	double gap = cplex.getMIPRelativeGap();
 	auto end = chrono::high_resolution_clock::now();
-	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	double Elapsed = (double)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t DESP Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
@@ -271,7 +261,7 @@ double DESP()
 #pragma endregion
 	CV::used_emis_cap = cplex.getValue(CV::E_emis);
 
-	Print_EV(cplex, obj_val, gap, Elapsed);
+	Get_EV_vals(cplex, obj_val, gap, Elapsed);
 
 	return obj_val;
 }
@@ -328,10 +318,10 @@ double DGSP()
 	}
 	//CV::eta_val = cplex.getValue(CV::NG_emis);
 
-	float obj_val = cplex.getObjValue();
-	float gap = cplex.getMIPRelativeGap();
+	double obj_val = cplex.getObjValue();
+	double gap = cplex.getMIPRelativeGap();
 	auto end = chrono::high_resolution_clock::now();
-	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	double Elapsed = (int)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t DGSP Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
@@ -339,7 +329,7 @@ double DGSP()
 	std::cout << "\t NG emission = " << cplex.getValue(CV::NG_emis) << endl;
 	std::cout << "\t E emission = " << cplex.getValue(CV::E_emis) << endl;
 #pragma endregion
-	Print_GV(cplex, obj_val, gap, Elapsed);
+	Get_GV_vals(cplex, obj_val, gap, Elapsed);
 	return obj_val;
 }
 
@@ -384,10 +374,10 @@ double Xi_LB2()
 		throw(-1);
 	}
 
-	float obj_val = cplex.getObjValue();
-	float gap = cplex.getMIPRelativeGap();
+	double obj_val = cplex.getObjValue();
+	double gap = cplex.getMIPRelativeGap();
 	auto end = chrono::high_resolution_clock::now();
-	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	double Elapsed = (double)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
@@ -434,10 +424,10 @@ double AUX_UB()
 		throw(-1);
 	}
 
-	float obj_val = cplex.getObjValue();
-	float gap = cplex.getMIPRelativeGap();
+	double obj_val = cplex.getObjValue();
+	double gap = cplex.getMIPRelativeGap();
 	auto end = chrono::high_resolution_clock::now();
-	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	double Elapsed = (double)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;
@@ -445,7 +435,7 @@ double AUX_UB()
 
 	if (Setting::print_NG_vars)
 	{
-		Print_GV(cplex, obj_val, gap, Elapsed);
+		Get_GV_vals(cplex, obj_val, gap, Elapsed);
 	}
 	return obj_val;
 }
@@ -492,10 +482,10 @@ double Xi_UB2(double aux_obj)
 		throw(-1);
 	}
 
-	float obj_val = cplex.getObjValue();
-	float gap = cplex.getMIPRelativeGap();
+	double obj_val = cplex.getObjValue();
+	double gap = cplex.getMIPRelativeGap();
 	auto end = chrono::high_resolution_clock::now();
-	double Elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+	double Elapsed = (double)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
 	std::cout << "Elapsed time: " << Elapsed << endl;
 	std::cout << "\t Obj Value:" << obj_val << endl;
 	std::cout << "\t Gap: " << gap << " Status:" << cplex.getStatus() << endl;

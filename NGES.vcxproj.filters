@@ -24,7 +24,7 @@
     <ClCompile Include="NGES Model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="UBs.cpp">
+    <ClCompile Include="AutoBenders.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="LBs.cpp">

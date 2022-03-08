@@ -23,12 +23,12 @@ struct enode
 	//int fips;
 	//int fips_order;
 	vector<int> adj_buses;
-	//vector<float> adj_dist;
+	//vector<double> adj_dist;
 	vector<string> Init_plt_types;
 	vector<int> Init_plt_ind;
-	vector<float*> Init_plt_prod_lim; // [Pmin,Pmax]
+	vector<double*> Init_plt_prod_lim; // [Pmin,Pmax]
 	vector<int> Init_plt_count;
-	vector<float> demand;
+	vector<double> demand;
 	enode(int n)
 	{
 		this->num = n;
@@ -45,7 +45,7 @@ struct enode
 //	int fips_num;
 //	int bus_count;
 //
-//	vector<float> demE;
+//	vector<double> demE;
 //	Fips(int f, int bc)
 //	{
 //		this->fips_num = f;
@@ -65,22 +65,22 @@ struct plant
 	int capex; // dollar per MW
 	int fix_cost;//dollar per count of type i per year
 	int var_cost;//dollar per MWh
-	float emis_rate;//ton/MMBTU
-	float heat_rate;//MMBTU/MWh
+	double emis_rate;//ton/MMBTU
+	double heat_rate;//MMBTU/MWh
 	int lifetime; // year
 	int decom_cost;
-	float Pmax;  // MW
-	float Pmin;
-	float rampU;
-	float rampD;
+	double Pmax;  // MW
+	double Pmin;
+	double rampU;
+	double rampD;
 	int emis_cost; //$/ton
 	// revisit these paramters laters
 
 
-	vector<float> prod_profile;
+	vector<double> prod_profile;
 
-	plant(string t, int n, int ise, int cap, int f, int v, float emi, float hr, int lt, int dec,
-		float pmax, float pmin, float ru, float rd, int emic, int max_num)
+	plant(string t, int n, int ise, int cap, int f, int v, double emi, double hr, int lt, int dec,
+		double pmax, double pmin, double ru, double rd, int emic, int max_num)
 	{
 		this->type = t;
 		this->num = n;
@@ -108,12 +108,12 @@ struct branch
 {
 	int from_bus;
 	int to_bus;
-	float suscep;
-	float maxFlow;
-	float length;
-	float cost;
+	double suscep;
+	double maxFlow;
+	double length;
+	double cost;
 	int is_exist;
-	branch(int f, int t, float l, float c, int ie, float m, float s)
+	branch(int f, int t, double l, double c, int ie, double m, double s)
 	{
 		this->from_bus = f;
 		this->to_bus = t;
@@ -133,10 +133,10 @@ struct eStore
 {
 	int energy_cost;// &/MWh
 	int power_cost; // &/MW
-	float eff_ch;  // charge efficiency
-	float eff_disCh; // discharge efficiency
-	float FOM; // fixed operating and maintanence cost
-	eStore(int en, int pow, float ch, float dis,float fom)
+	double eff_ch;  // charge efficiency
+	double eff_disCh; // discharge efficiency
+	double FOM; // fixed operating and maintanence cost
+	eStore(int en, int pow, double ch, double dis,double fom)
 	{
 		this->energy_cost = en;
 		this->power_cost = pow;
@@ -152,10 +152,10 @@ struct gnode
 {
 	int num;
 	int fips;
-	vector<float> demG;
+	vector<double> demG;
 	int out_dem;
 	int injU;
-	int injL = 0.0;
+	int injL = 0;
 	vector<int> Lexp;
 	vector<int> Limp;
 	vector<int> adjE;
@@ -181,10 +181,10 @@ struct pipe
 	int from_node;
 	int to_node;
 	int is_exist;
-	float length;
-	float cap;
+	double length;
+	double cap;
 
-	pipe(int f, int t, int exi, float le, float ca)
+	pipe(int f, int t, int exi, double le, double ca)
 	{
 		this->from_node = f;
 		this->to_node = t;
@@ -219,10 +219,10 @@ struct SVL
 	// SVL 2: Liquefaction facility
 	int Capex;
 	int FOM;
-	float eff_ch;  // charge efficiency
-	float eff_disCh; // discharge efficiency
-	float BOG = 6e-6; // Boil-off gas, Dharik: The boiled off gas is sent to the pipeline network. You can convert this to an hourly rate and model this as the minimum discharge of the tank in each hour
-	SVL(int cp, int fm, float ch, float dis)
+	double eff_ch;  // charge efficiency
+	double eff_disCh; // discharge efficiency
+	double BOG = 6e-6; // Boil-off gas, Dharik: The boiled off gas is sent to the pipeline network. You can convert this to an hourly rate and model this as the minimum discharge of the tank in each hour
+	SVL(int cp, int fm, double ch, double dis)
 	{
 		this->Capex = cp;
 		this->FOM = fm;
@@ -237,24 +237,24 @@ struct Params
 {
 	// General
 	static int Num_Rep_Days;
-	static float WACC;
+	static double WACC;
 	static int trans_unit_cost;
 	static int trans_line_lifespan;
-	static float NG_price;
-	//static float Emis_lim;
-	//static float RPS;
+	static double NG_price;
+	static double RNG_price;
+	static double RNG_cap;
 
-	static float dfo_pric;
-	static float coal_price;
-	static float nuclear_price;
-	static float E_curt_cost;
-	static float G_curt_cost;
-	static float pipe_per_mile;
+	static double dfo_pric;
+	static double coal_price;
+	static double nuclear_price;
+	static double E_curt_cost;
+	static double G_curt_cost;
+	static double pipe_per_mile;
 	static int pipe_lifespan;
 	static int battery_lifetime;
 	static int SVL_lifetime;
 	static vector<int> RepDaysCount;
-	static float NG_emis_rate;
+	static double NG_emis_rate;
 
 
 	// natural gas data

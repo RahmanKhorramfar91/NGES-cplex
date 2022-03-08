@@ -4,21 +4,22 @@
 #pragma region Declaration of fields of "Setting" struct
 bool Setting::print_E_vars;
 bool Setting::print_NG_vars;
+bool Setting::print_results_header;
 bool Setting::relax_int_vars;
 bool Setting::is_xi_given;
 double Setting::xi_val;
 bool Setting::xi_UB_obj;
 bool Setting::xi_LB_obj;
-float Setting::cplex_gap;
-float Setting::CPU_limit;
+double Setting::cplex_gap;
+double Setting::CPU_limit;
 int Setting::Num_rep_days;
-float Setting::Emis_lim;
-float Setting::RPS;
+double Setting::Emis_lim;
+double Setting::RPS;
 bool Setting::DGSP_active;
 bool Setting::DESP_active;
 bool Setting::Approach_1_active;
 bool Setting::Approach_2_active;
-
+double Setting::RNG_cap;
 #pragma endregion
 
 
@@ -56,47 +57,65 @@ bool Setting::Approach_2_active;
 //9) if you're using visual studio 2017 with cplex 12.8, you may encounter an error which you then may
 //follow this link: https://www-01.ibm.com/support/docview.wss?uid=ibm10718671
 
-int main()
+int main(int argc, char* argv[])
 {
 	// NOTE: prints for t<10 for prod[n][t][i]
 	auto start = chrono::high_resolution_clock::now();
+	if (argc > 1)
+	{
+		Setting::Num_rep_days = atoi(argv[1]);
+		Setting::Approach_1_active = atoi(argv[2]);
+		Setting::Approach_2_active = atoi(argv[3]);
+		Setting::is_xi_given = atoi(argv[4]);
+		Setting::xi_val = atof(argv[5]);
+		Setting::Emis_lim = atof(argv[6]);
+		Setting::RPS = atof(argv[7]);
+		Setting::RNG_cap = atof(argv[8]);
+		Setting::cplex_gap = atof(argv[9]);  // 1%
+		Setting::CPU_limit = atoi(argv[10]);   // seconds
+	}
+	else
+	{
+		Setting::Num_rep_days = 2;   // 2, 7, 14, 52, 365
+		Setting::Approach_1_active = true; // default = true
+		Setting::Approach_2_active = false; // default = false
+		Setting::is_xi_given = false;
+		Setting::xi_val = 1.43405e+08;
+		Setting::Emis_lim = 20e6;    // tons
+		Setting::RPS = 0.1;		    // out of 1 (=100%) Renewable Portfolio Share
+		Setting::RNG_cap = 50e3;
+		Setting::cplex_gap = 0.01;  // 1%
+		Setting::CPU_limit = 3600;   // seconds
+	}
 
 #pragma region Problem Setting
-	Setting::Num_rep_days = 2;   // 2, 7, 14, 52, 365
 	Setting::relax_int_vars = false; // int vars in electricity network
-	Setting::print_E_vars = true;
-	Setting::print_NG_vars = true;
-	Setting::is_xi_given = false;
-	Setting::xi_val = 1.43405e+08;
+	Setting::print_results_header = true;
+
 	Setting::xi_LB_obj = false; // (default = false) 
 	Setting::xi_UB_obj = false;  // (default = false) 
-	Setting::cplex_gap = 0.01;  // 1%
-	Setting::CPU_limit = 140;   // seconds
-	Setting::Emis_lim = 17e6;    // tons
-	Setting::RPS = 0.0;		    // out of 1 (=100%) Renewable Portfolio Share
-	Setting::Approach_1_active = true; // default = true
-	Setting::Approach_2_active = true; // default = false
 
 #pragma endregion
 
 #pragma region  Other parameters
 	Params::Num_Rep_Days = Setting::Num_rep_days;
-	float WACC = 0.05;// Weighted average cost of capital to calculate CAPEX coefficient from ATB2021
+	double RNG_price = 20; // $$ per MMBtu
+	double WACC = 0.05;// Weighted average cost of capital to calculate CAPEX coefficient from ATB2021
 	int trans_unit_cost = 3500; // dollars per MW per mile of trans. line (ReEDS 2019)
 	int trans_line_lifespan = 40; // years
 	int decom_lifetime = 2035 - 2016;
 	int battery_lifetime = 15; // 
-	float NG_price = 4;//per MMBTu, approximated from NG price in eia.gov
-	float dfo_pric = (1e6 / 1.37e5) * 3.5;//https://www.eia.gov/energyexplained/units-and-calculators/ and https://www.eia.gov/petroleum/gasdiesel/
-	float coal_price = 92 / 19.26; //https://www.eia.gov/coal/ and https://www.eia.gov/tools/faqs/faq.php?id=72&t=2#:~:text=In%202020%2C%20the%20annual%20average,million%20Btu%20per%20short%20ton.
-	float Nuclear_price = 0.69; // per MMBtu
-	float E_curt_cost = 5e4; // $ per MWh;
-	float G_curt_cost = 5e3; // & per MMBtu
-	float pipe_per_mile = 7e+5;//https://www.gem.wiki/Oil_and_Gas_Pipeline_Construction_Costs
+	double NG_price = 4;//per MMBTu, approximated from NG price in eia.gov
+	double dfo_pric = (1e6 / 1.37e5) * 3.5;//https://www.eia.gov/energyexplained/units-and-calculators/ and https://www.eia.gov/petroleum/gasdiesel/
+	double coal_price = 92 / 19.26; //https://www.eia.gov/coal/ and https://www.eia.gov/tools/faqs/faq.php?id=72&t=2#:~:text=In%202020%2C%20the%20annual%20average,million%20Btu%20per%20short%20ton.
+	double Nuclear_price = 0.69; // per MMBtu
+	double E_curt_cost = 5e4; // $ per MWh;
+	double G_curt_cost = 5e4; // & per MMBtu
+	double pipe_per_mile = 7e+5;//https://www.gem.wiki/Oil_and_Gas_Pipeline_Construction_Costs
 	int SVL_lifetime = 40; //https://www.hydrogen.energy.gov/pdfs/19001_hydrogen_liquefaction_costs.pdf
 	int pipe_lifespan = 50; // years, https://www.popsci.com/story/environment/oil-gas-pipelines-property/#:~:text=There%20are%20some%203%20million,%2C%20power%20plants%2C%20and%20homes.&text=Those%20pipelines%20have%20an%20average%20lifespan%20of%2050%20years.
-	float Ng_demand_growth_by_2050 = 0.5; // 50% https://www.eia.gov/todayinenergy/detail.php?id=42342
-	float NG_emis_rate = 0.05831;  // tons of CO2 per MMBtu
+	double Ng_demand_growth_by_2050 = 0.5; // 50% https://www.eia.gov/todayinenergy/detail.php?id=42342
+	double NG_emis_rate = 0.05831;  // tons of CO2 per MMBtu
 #pragma endregion
 
 #pragma region Read Data
@@ -118,7 +137,8 @@ int main()
 	Params::pipe_lifespan = pipe_lifespan;
 	Params::SVL_lifetime = SVL_lifetime;
 	Params::battery_lifetime = battery_lifetime;
-	//Params::Emis_lim = Emis_lim;
+	Params::RNG_cap = Setting::RNG_cap;
+	Params::RNG_price = RNG_price;
 	//Params::RPS = RPS;
 	Params::NG_emis_rate = NG_emis_rate;
 #pragma endregion
@@ -130,19 +150,26 @@ int main()
 	int** XdecS = new int* [Params::Enodes.size()];
 
 
-	double LB = 0; double opt = 0; double UB1 = 0; double UB2 = 0;
+	double opt = 0; double UB1 = 0; double UB2 = 0;
 	double MidSol = 0;
 	// get upper and lower bound for xi by the first approach (Integrate Model)
 
 	double xiLB1 = 0; double xiUB1 = 0;
 	if (Setting::Approach_1_active)
 	{
-		//double total_cost = NGES_Model();
-		Setting::xi_LB_obj = true; Setting::xi_UB_obj = false; Setting::print_NG_vars = false;
-		xiLB1 = NGES_Model();
+		double total_cost = NGES_Model();
+		if (Setting::xi_LB_obj)
+		{
+			Setting::xi_LB_obj = true; Setting::xi_UB_obj = false; Setting::print_NG_vars = false;
+			xiLB1 = NGES_Model();
+		}
 
-		Setting::xi_LB_obj = false; Setting::xi_UB_obj = true; Setting::print_E_vars = false;
-		xiUB1 = NGES_Model();
+		if (Setting::xi_UB_obj)
+		{
+			Setting::xi_LB_obj = false; Setting::xi_UB_obj = true; Setting::print_E_vars = false;
+			xiUB1 = NGES_Model();
+		}
+
 	}
 	double desp_obj = 0;
 	double dgsp_obj = 0; double xiLB2 = 0; double xiUB2 = 0;
@@ -181,5 +208,5 @@ int main()
 	//double gap1 = 100 * (UB2 - LB) / LB;
 	//cout << "Gap ((UB-LB)/LB) (%)" << gap1 << endl;
 	// system("pause");
-	return 0;
+
 }
