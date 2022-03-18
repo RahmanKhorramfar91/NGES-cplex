@@ -28,6 +28,8 @@ IloNumVar EV::shedding_cost;
 IloNumVar EV::elec_storage_cost;
 IloNumVar EV::Emit_var;
 IloNumVar EV::e_system_cost;
+IloNumVar EV::dfo_coal_emis_cost;
+double*** EV::val_prod;
 double EV::val_est_cost;
 double EV::val_decom_cost;
 double EV::val_fixed_cost;
@@ -46,7 +48,7 @@ double  EV::val_total_curt; // total load shedding
 double  EV::val_num_est_trans; // number of new transmission lines established
 double  EV::val_total_flow; // total flow in the E network
 double* EV::val_total_prod = new double[Params::Plants.size()](); // total production	
-
+double EV::val_dfo_coal_emis_cost;
 #pragma endregion
 
 #pragma region NG struct
@@ -70,7 +72,7 @@ IloNumVar GV::rngShedd_cost;
 IloNumVar GV::gStrFOM_cost;
 IloNumVar GV::NG_import_cost;
 IloNumVar GV::NG_system_cost;
-
+double*** GV::val_flowGE;
 double GV::val_strInv_cost;
 double GV::val_pipe_cost;
 double GV::val_ngShedd_cost;
@@ -223,6 +225,7 @@ void Populate_EV(IloModel& Model, IloEnv& env)
 	EV::curtE = curtE;
 	EV::decom_cost = decom_cost;
 	EV::elec_storage_cost = elec_storage_cost;
+	EV::dfo_coal_emis_cost = IloNumVar(env, 0, IloInfinity, ILOFLOAT);
 	EV::eSch = eSch;
 	EV::eSdis = eSdis;
 	EV::eSlev = eSlev;
@@ -321,7 +324,7 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 	IloExpr ex_fix(env);
 	IloExpr ex_var(env);
 	IloExpr ex_thermal_fuel(env);
-	//IloExpr ex_emis(env);
+	IloExpr ex_emis(env);
 	IloExpr ex_shedd(env);
 	IloExpr ex_trans(env);
 	IloExpr ex_elec_str(env);
@@ -365,6 +368,12 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 				{
 					ex_thermal_fuel += time_weight[t] * nuclear_price * Plants[i].heat_rate * EV::prod[n][t][i];
 				}
+
+				// emission cost (to be added later)
+				if (Plants[i].type != "ng" && Plants[i].type != "CT" && Plants[i].type != "CC" && Plants[i].type != "CC-CCS")
+				{
+					ex_emis += time_weight[t] * Plants[i].emis_cost * Plants[i].emis_rate * EV::prod[n][t][i];
+				}
 			}
 
 			// load curtailment cost
@@ -394,14 +403,14 @@ void Elec_Model(IloModel& Model, IloEnv& env, IloExpr& exp_Eobj)
 		ex_trans += capco * trans_unit_cost * Branches[b].maxFlow * Branches[b].length * EV::Ze[b];
 		Model.add(EV::Ze[b]);
 	}
-	exp_Eobj = ex_est + ex_decom + ex_fix + ex_var + ex_thermal_fuel + ex_shedd + ex_trans + ex_elec_str;
+	exp_Eobj = ex_est + ex_decom + ex_fix + ex_emis + ex_var + ex_thermal_fuel + ex_shedd + ex_trans + ex_elec_str;
 
 	Model.add(EV::est_cost == ex_est);
 	Model.add(EV::decom_cost == ex_decom);
 	Model.add(EV::fixed_cost == ex_fix);
 	Model.add(EV::var_cost == ex_var);
 	Model.add(EV::thermal_fuel_cost == ex_thermal_fuel);
-	//Model.add(emis_cost == ex_emis);
+	Model.add(EV::dfo_coal_emis_cost == ex_emis);
 	Model.add(EV::shedding_cost == ex_shedd);
 	Model.add(EV::elec_storage_cost == ex_elec_str);
 
@@ -1094,7 +1103,14 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env, IloExpr& ex_xi, IloExpr&
 					{
 						if (Plants[i].type == "ng" || Plants[i].type == "CT" || Plants[i].type == "CC" || Plants[i].type == "CC-CCS")
 						{
-							exp2 += time_weight[t] * Plants[i].heat_rate * EV::prod[n][t][i];
+							if (Setting::DGSP_active)
+							{
+								exp2 += time_weight[t] * Plants[i].heat_rate * EV::val_prod[n][t][i];
+							}
+							else
+							{
+								exp2 += time_weight[t] * Plants[i].heat_rate * EV::prod[n][t][i];
+							}
 						}
 					}
 				}
@@ -1161,7 +1177,10 @@ void Coupling_Constraints(IloModel& Model, IloEnv& env, IloExpr& ex_xi, IloExpr&
 		{
 			for (int i = 0; i < nPlt; i++)
 			{
-				ex_E_emis += time_weight[t] * Plants[i].emis_rate * Plants[i].heat_rate * EV::prod[n][t][i];
+				if (Plants[i].type == "ng" || Plants[i].type == "CT" || Plants[i].type == "CC" || Plants[i].type == "CC-CCS")
+				{
+					ex_E_emis += time_weight[t] * Plants[i].emis_rate * Plants[i].heat_rate * EV::prod[n][t][i];
+				}
 			}
 		}
 	}

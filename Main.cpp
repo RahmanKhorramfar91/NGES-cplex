@@ -59,8 +59,12 @@ double Setting::RNG_cap;
 
 int main(int argc, char* argv[])
 {
-	// NOTE: prints for t<10 for prod[n][t][i]
+
 	auto start = chrono::high_resolution_clock::now();
+	double total_ng_inj_per_year = 1.93E+09; //MMBtu
+	double total_possible_emis_per_year = total_ng_inj_per_year * 0.05831;//=1.13E+08
+	double total_ng_yearly_demand = 1.22E+09; // possible pollution: 7.09E+07
+
 	if (argc > 1)
 	{
 		Setting::Num_rep_days = atoi(argv[1]);
@@ -68,7 +72,7 @@ int main(int argc, char* argv[])
 		Setting::Approach_2_active = atoi(argv[3]);
 		Setting::is_xi_given = atoi(argv[4]);
 		Setting::xi_val = atof(argv[5]);
-		Setting::Emis_lim = atof(argv[6]);
+		Setting::Emis_lim = total_possible_emis_per_year*atof(argv[6]);
 		Setting::RPS = atof(argv[7]);
 		Setting::RNG_cap = atof(argv[8]);
 		Setting::cplex_gap = atof(argv[9]);  // 1%
@@ -76,14 +80,14 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		Setting::Num_rep_days = 2;   // 2, 7, 14, 52, 365
+		Setting::Num_rep_days = 7;   // 2, 7, 14, 52, 365
 		Setting::Approach_1_active = true; // default = true
 		Setting::Approach_2_active = false; // default = false
 		Setting::is_xi_given = false;
-		Setting::xi_val = 1.43405e+08;
-		Setting::Emis_lim = 20e6;    // tons
-		Setting::RPS = 0.1;		    // out of 1 (=100%) Renewable Portfolio Share
-		Setting::RNG_cap = 50e3;
+		Setting::xi_val = 6.81119e+07;// 9.26E+07;
+		Setting::Emis_lim = 2e7;    // tons
+		Setting::RPS = 0.2;		    // out of 1 (=100%) Renewable Portfolio Share
+		Setting::RNG_cap = 5e4;
 		Setting::cplex_gap = 0.01;  // 1%
 		Setting::CPU_limit = 3600;   // seconds
 	}
@@ -91,13 +95,12 @@ int main(int argc, char* argv[])
 #pragma region Problem Setting
 	Setting::relax_int_vars = false; // int vars in electricity network
 	Setting::print_results_header = true;
-
 	Setting::xi_LB_obj = false; // (default = false) 
 	Setting::xi_UB_obj = false;  // (default = false) 
-
 #pragma endregion
 
 #pragma region  Other parameters
+
 	Params::Num_Rep_Days = Setting::Num_rep_days;
 	double RNG_price = 20; // $$ per MMBtu
 	double WACC = 0.05;// Weighted average cost of capital to calculate CAPEX coefficient from ATB2021
@@ -109,8 +112,8 @@ int main(int argc, char* argv[])
 	double dfo_pric = (1e6 / 1.37e5) * 3.5;//https://www.eia.gov/energyexplained/units-and-calculators/ and https://www.eia.gov/petroleum/gasdiesel/
 	double coal_price = 92 / 19.26; //https://www.eia.gov/coal/ and https://www.eia.gov/tools/faqs/faq.php?id=72&t=2#:~:text=In%202020%2C%20the%20annual%20average,million%20Btu%20per%20short%20ton.
 	double Nuclear_price = 0.69; // per MMBtu
-	double E_curt_cost = 5e4; // $ per MWh;
-	double G_curt_cost = 5e4; // & per MMBtu
+	double E_curt_cost = 3e4; // $ per MWh;
+	double G_curt_cost = 3e4; // & per MMBtu
 	double pipe_per_mile = 7e+5;//https://www.gem.wiki/Oil_and_Gas_Pipeline_Construction_Costs
 	int SVL_lifetime = 40; //https://www.hydrogen.energy.gov/pdfs/19001_hydrogen_liquefaction_costs.pdf
 	int pipe_lifespan = 50; // years, https://www.popsci.com/story/environment/oil-gas-pipelines-property/#:~:text=There%20are%20some%203%20million,%2C%20power%20plants%2C%20and%20homes.&text=Those%20pipelines%20have%20an%20average%20lifespan%20of%2050%20years.
@@ -119,11 +122,10 @@ int main(int argc, char* argv[])
 #pragma endregion
 
 #pragma region Read Data
-	// Read Natural Gas Data
 	Read_Data();
 #pragma endregion
 
-#pragma region Populate Params
+#pragma region Set Params
 	Params::WACC = WACC;
 	Params::trans_unit_cost = trans_unit_cost;
 	Params::trans_line_lifespan = trans_line_lifespan;
@@ -157,33 +159,33 @@ int main(int argc, char* argv[])
 	double xiLB1 = 0; double xiUB1 = 0;
 	if (Setting::Approach_1_active)
 	{
+		bool ap2 = Setting::Approach_2_active;
+		Setting::Approach_2_active = false;
 		double total_cost = NGES_Model();
-		if (Setting::xi_LB_obj)
-		{
-			Setting::xi_LB_obj = true; Setting::xi_UB_obj = false; Setting::print_NG_vars = false;
-			xiLB1 = NGES_Model();
-		}
-
-		if (Setting::xi_UB_obj)
-		{
-			Setting::xi_LB_obj = false; Setting::xi_UB_obj = true; Setting::print_E_vars = false;
-			xiUB1 = NGES_Model();
-		}
-
+		auto end = chrono::high_resolution_clock::now();
+		double Elapsed = (double)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+		Print_Results(Elapsed);
+		if (Setting::xi_LB_obj) { xiLB1 = NGES_Model(); }
+		if (Setting::xi_UB_obj) { xiUB1 = NGES_Model(); }
+		start = chrono::high_resolution_clock::now();
+		Setting::Approach_2_active = ap2;
 	}
 	double desp_obj = 0;
 	double dgsp_obj = 0; double xiLB2 = 0; double xiUB2 = 0;
 	if (Setting::Approach_2_active)
 	{
-		//desp_obj = DESP();
-		//dgsp_obj = DGSP();
-
-		Setting::print_NG_vars = false;
-		xiLB2 = Xi_LB2();
-
-		Setting::print_NG_vars = false;
-		double aux_obj = AUX_UB();
-		xiUB2 = Xi_UB2(aux_obj);
+		Setting::Approach_1_active = false;
+		desp_obj = DESP();
+		dgsp_obj = DGSP();
+		auto end = chrono::high_resolution_clock::now();
+		double Elapsed = (double)chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000; // seconds
+		Print_Results(Elapsed);
+		if (Setting::xi_LB_obj) { xiLB2 = Xi_LB2(); }
+		if (Setting::xi_UB_obj)
+		{
+			double aux_obj = AUX_UB();
+			xiUB2 = Xi_UB2(aux_obj);
+		}
 	}
 
 

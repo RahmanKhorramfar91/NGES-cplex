@@ -83,8 +83,10 @@ struct EV
 	static	IloNumVar shedding_cost;
 	static	IloNumVar elec_storage_cost;
 	static	IloNumVar Emit_var;
+	static	IloNumVar dfo_coal_emis_cost;
 	static IloNumVar e_system_cost;
 
+	static double*** val_prod;
 	static	double val_est_cost;
 	static	double val_decom_cost;
 	static	double val_fixed_cost;
@@ -93,6 +95,7 @@ struct EV
 	static	double val_shedding_cost;
 	static	double val_elec_storage_cost;
 	static	double val_Emit_var;
+	static double val_dfo_coal_emis_cost;
 	static  double val_e_system_cost;
 	static double val_num_storage; // number of storage facilities established
 	static double val_storage_lev; // value of toal storage capacity (MWh)
@@ -129,6 +132,7 @@ struct GV
 	static IloNumVar NG_import_cost;
 	static IloNumVar NG_system_cost;
 
+	static double*** val_flowGE;
 	static double val_strInv_cost;
 	static double val_pipe_cost;
 	static double val_ngShedd_cost;

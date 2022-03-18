@@ -4,7 +4,6 @@ typedef IloArray<IloNumVarArray> NumVar2D; // to define 2-D decision variables
 typedef IloArray<NumVar2D> NumVar3D;  // to define 3-D decision variables
 typedef IloArray<NumVar3D> NumVar4D;  // to define 4-D decision variables
 
-
 void Electricy_Network_Model()
 {
 	auto start = chrono::high_resolution_clock::now();
@@ -118,10 +117,9 @@ void NG_Network_Model()
 
 #pragma endregion
 
-	if (Setting::print_NG_vars)
-	{
-		Get_GV_vals(cplex, obj_val, gap, Elapsed);
-	}
+	
+	Get_GV_vals(cplex, obj_val, gap, Elapsed);
+	
 
 }
 
@@ -201,11 +199,6 @@ double NGES_Model()
 
 	Get_GV_vals(cplex, obj_val, gap, Elapsed);
 	Get_EV_vals(cplex, obj_val, gap, Elapsed);
-
-
-
-
-	Print_Results(Elapsed);
 	return obj_val;
 
 }
@@ -219,7 +212,6 @@ double DESP()
 	IloExpr exp_Eobj(env);
 	Populate_EV(Model, env); Populate_GV(Model, env);
 	Elec_Model(Model, env, exp_Eobj);
-
 
 	// coupling constraints
 	IloExpr ex_xi(env); IloExpr ex_NG_emis(env); IloExpr ex_E_emis(env);
@@ -276,12 +268,12 @@ double DGSP()
 	Populate_GV(Model, env);
 	Populate_EV(Model, env);
 	NG_Model(Model, env, exp_NGobj);
-	Setting::Approach_2_active = true;
-	Setting::DGSP_active = true; Setting::DESP_active = false;
+
 	// coupling constraints
+	Setting::DGSP_active = true;
 	IloExpr ex_xi(env); IloExpr ex_NG_emis(env); IloExpr ex_E_emis(env);
 	Coupling_Constraints(Model, env, ex_xi, ex_NG_emis, ex_E_emis);
-
+	Setting::DGSP_active = false;//back to default
 	// Coupling 1: xi must be given
 	Model.add(CV::xi == ex_xi);
 	Model.add(ex_xi == Setting::xi_val);
@@ -297,20 +289,9 @@ double DGSP()
 	Model.add(IloMinimize(env, exp_NGobj));
 
 #pragma region Solve the model
-
 	IloCplex cplex(Model);
 	cplex.setParam(IloCplex::TiLim, Setting::CPU_limit);
 	cplex.setParam(IloCplex::EpGap, Setting::cplex_gap); // 0.1%
-	//cplex.exportModel("MA_LP.lp");
-
-	//cplex.setOut(env.getNullStream());
-
-	//cplex.setParam(IloCplex::Param::MIP::Strategy::Branch, 1); //Up/down branch selected first (1,-1),  default:automatic (0)
-	//cplex.setParam(IloCplex::Param::MIP::Strategy::BBInterval, 7);// 0 to 7
-	//cplex.setParam(IloCplex::Param::MIP::Strategy::NodeSelect, 2);
-	//https://www.ibm.com/support/knowledgecenter/SSSA5P_12.9.0/ilog.odms.cplex.help/CPLEX/UsrMan/topics/discr_optim/mip/performance/20_node_seln.html
-	//cplex.setParam(IloCplex::Param::MIP::Strategy::VariableSelect, 4);//-1 to 4
-	//cplex.setParam(IloCplex::Param::RootAlgorithm, 4); /000 to 6
 	if (!cplex.solve()) {
 		env.error() << "Failed to Optimize DGSP!!!" << endl;
 		std::cout << cplex.getStatus();

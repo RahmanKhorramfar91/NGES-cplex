@@ -38,6 +38,7 @@ void Get_EV_vals(IloCplex cplex, double obj, double gap, double Elapsed_time)
 	EV::val_shedding_cost = cplex.getValue(EV::shedding_cost);
 	EV::val_elec_storage_cost = cplex.getValue(EV::elec_storage_cost);
 	EV::val_Emit_var = cplex.getValue(CV::E_emis);
+	EV::val_dfo_coal_emis_cost = cplex.getValue(EV::dfo_coal_emis_cost);
 	EV::val_e_system_cost = cplex.getValue(EV::e_system_cost);
 
 	CV::val_E_emis = cplex.getValue(CV::E_emis);
@@ -123,20 +124,20 @@ void Get_EV_vals(IloCplex cplex, double obj, double gap, double Elapsed_time)
 		//}
 	}
 
-	//double*** prodS = new double** [nEnode];
+	EV::val_prod = new double** [nEnode];
 	EV::val_total_prod = new double[nPlt]();
 	for (int n = 0; n < nEnode; n++)
 	{
-		//prodS[n] = new double* [Te.size()];
+		EV::val_prod[n] = new double* [Te.size()];
 		for (int t = 0; t < Te.size(); t++)
 		{
 			//if (t > periods2print) { break; }
 
-			//prodS[n][t] = new double[nPlt]();
+			EV::val_prod[n][t] = new double[nPlt]();
 			for (int i = 0; i < nPlt; i++)
 			{
 				EV::val_total_prod[i] += time_weight[t] * cplex.getValue(EV::prod[n][t][i]);
-				//prodS[n][t][i] = cplex.getValue(EV::prod[n][t][i]);
+				EV::val_prod[n][t][i] = cplex.getValue(EV::prod[n][t][i]);
 				//if (prodS[n][t][i] > 10e-3)
 				//{
 				//	//	std::cout << "prod[" << n << "][" << t << "][" << i << "] = " << prodS[n][t][i] << endl;
@@ -359,7 +360,7 @@ void Get_GV_vals(IloCplex cplex, double obj, double gap, double Elapsed_time)
 	{
 		for (int tau = 0; tau < Tg.size(); tau++)
 		{
-			GV::val_supply[k] = RepDaysCount[k] * cplex.getValue(GV::supply[k][tau]);
+			GV::val_supply[k] = RepDaysCount[tau] * cplex.getValue(GV::supply[k][tau]);
 			/*if (s1 > 0)
 			{
 				fid2 << "supply[" << k << "][" << tau << "] = " << s1 << endl;
@@ -372,8 +373,8 @@ void Get_GV_vals(IloCplex cplex, double obj, double gap, double Elapsed_time)
 	{
 		for (int tau = 0; tau < Tg.size(); tau++)
 		{
-			GV::val_ng_curt += RepDaysCount[k] * cplex.getValue(GV::curtG[k][tau]);
-			GV::val_rng_curt += RepDaysCount[k] * cplex.getValue(GV::curtRNG[k][tau]);
+			GV::val_ng_curt += RepDaysCount[tau] * cplex.getValue(GV::curtG[k][tau]);
+			GV::val_rng_curt += RepDaysCount[tau] * cplex.getValue(GV::curtRNG[k][tau]);
 			/*if (s1 > 0)
 			{
 				fid2 << "CurtG[" << k << "][" << tau << "] = " << s1 << endl;
@@ -402,12 +403,16 @@ void Get_GV_vals(IloCplex cplex, double obj, double gap, double Elapsed_time)
 		}
 	}
 	//fid2 << endl;
+	//GV::val_flowGE = new double** [nGnode];
 	for (int k = 0; k < nGnode; k++)
 	{
+		//GV::val_flowGE[k] = new double* [Gnodes[k].adjE.size()];
 		for (int kp : Gnodes[k].adjE)
 		{
+			//GV::val_flowGE[k][kp] = new double[Tg.size()]();
 			for (int tau = 0; tau < Tg.size(); tau++)
 			{
+				//GV::val_flowGE[k][kp][tau] = cplex.getValue(GV::flowGE[k][kp][tau]);
 				GV::val_total_flowGE += cplex.getValue(GV::flowGE[k][kp][tau]);
 				/*if (std::abs(s1) > 0.1)
 				{
@@ -535,7 +540,8 @@ void Print_Results(double Elapsed_time)
 		fid << "Decom_cost" << ",";
 		fid << "Fixed_cost" << ",";
 		fid << "Variable_cost" << ",";
-		fid << "Cola_dfo_fuel_cost" << ",";
+		fid << "dfo_coal_emis_cost" << ",";
+		fid << "Coal_dfo_fuel_cost" << ",";
 		fid << "Shedding_cost" << ",";
 		fid << "Storage_cost" << ",";
 		fid << "Num_storage" << ",";
@@ -587,6 +593,7 @@ void Print_Results(double Elapsed_time)
 	fid << EV::val_decom_cost << ",";
 	fid << EV::val_fixed_cost << ",";
 	fid << EV::val_var_cost << ",";
+	fid << EV::val_dfo_coal_emis_cost << ",";
 	fid << EV::val_thermal_fuel_cost << ",";
 	fid << EV::val_shedding_cost << ",";
 	fid << EV::val_elec_storage_cost << ",";
@@ -633,7 +640,7 @@ void Print_Results(double Elapsed_time)
 	fid << ",";
 	for (int j = 0; j < Params::Gnodes.size(); j++)
 	{
-		fid << "," << GV::supply[j];
+		fid << "," << GV::val_supply[j];
 	}
 	fid << ",";
 	for (int j = 0; j < Params::SVLs.size(); j++)
@@ -652,26 +659,30 @@ void Print_Results(double Elapsed_time)
 	ofstream fid2;
 	fid2.open("NGES_Results.txt", std::ios::app);
 	// problem setting
-	fid2 << "\nNum_Rep_days: " << Setting::Num_rep_days;
+	fid2 << "\n ************************************************************************* ";
+	fid2 << "\n Num_Rep_days: " << Setting::Num_rep_days;
 	fid2 << "\t Approach 1: " << Setting::Approach_1_active;
 	fid2 << "\tApproach 2: " << Setting::Approach_2_active;
 	fid2 << "\txi_given: " << Setting::is_xi_given;
-	fid2 << "\txi_val: " << Setting::xi_val;
+	fid2 << "\txi_val: " << CV::val_xi;
 	fid2 << "\tEmis_lim: " << Setting::Emis_lim;
 	fid2 << "\tRPS: " << Setting::RPS;
 	fid2 << "\tRNG_cap: " << Setting::RNG_cap;
-	
+
 
 	fid2 << "\n\t Elapsed time: " << Elapsed_time << endl;
 	fid2 << "\t Total cost for both networks:" << EV::val_e_system_cost + GV::val_NG_system_cost << endl;
+
+	fid2 << "\n \t Electricity Network Obj Value: " << EV::val_e_system_cost;
 	fid2 << "\n \t Establishment Cost: " << EV::val_est_cost;
 	fid2 << "\n \t Decommissioning Cost: " << EV::val_decom_cost;
 	fid2 << "\n \t Fixed Cost: " << EV::val_fixed_cost;
 	fid2 << "\n \t Variable Cost: " << EV::val_var_cost;
+	fid2 << "\n \t dfo,coal emission cost: " << EV::val_dfo_coal_emis_cost;
 	fid2 << "\n \t (dfo, coal, and nuclear) Fuel Cost: " << EV::val_thermal_fuel_cost;
 	fid2 << "\n \t Load Shedding Cost: " << EV::val_shedding_cost;
 	fid2 << "\n \t Storage Cost: " << EV::val_elec_storage_cost;
-	fid2 << "\t E Emission: " << CV::val_E_emis << "\n";
+	fid2 << "\n \t E Emission: " << CV::val_E_emis << "\n";
 
 
 	fid2 << "\n\n\t NG Network Obj Value:" << GV::val_NG_system_cost << endl;
